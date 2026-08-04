@@ -28,18 +28,18 @@ The staging and production Workers use separate D1, R2, and Queue resources. The
 
 Set these Worker variables for a deployed environment:
 
-| Variable                   | Use                                                                                            |
-| -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `ENVIRONMENT`              | `production`, `staging`, or `development`                                                      |
-| `ACCESS_TEAM_DOMAIN`       | Cloudflare Access team domain; injected by the Workers Builds deploy command                   |
-| `ACCESS_AUD`               | Expected Cloudflare Access application audience; injected by the Workers Builds deploy command |
-| `ALLOW_LOCAL_AUTH`         | `false` for deployed environments                                                              |
-| `LOCAL_BOOTSTRAP_IDENTITY` | Development-only fallback identity                                                             |
-| `PROVIDER_WRITES_ENABLED`  | `false` unless GitHub writes are explicitly enabled                                            |
+| Variable                   | Use                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------- |
+| `ENVIRONMENT`              | `production`, `staging`, or `development`                                       |
+| `ACCESS_TEAM_DOMAIN`       | Cloudflare Access team domain; managed on the deployed Worker                   |
+| `ACCESS_AUD`               | Expected Cloudflare Access application audience; managed on the deployed Worker |
+| `ALLOW_LOCAL_AUTH`         | `false` for deployed environments                                               |
+| `LOCAL_BOOTSTRAP_IDENTITY` | Development-only fallback identity                                              |
+| `PROVIDER_WRITES_ENABLED`  | `false` unless GitHub writes are explicitly enabled                             |
 
 The Worker returns a configuration error when deployed Access settings are unset. Local authentication is rejected outside development and outside the loopback interface.
 
-`ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` remain `unset` in the repository configuration. Set both as build variables on each Workers Builds trigger, using the value for that Worker. The deploy script passes them as runtime variables without writing their values to the repository.
+`ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are intentionally omitted from the repository configuration. The deploy command uses `--keep-vars`, so existing values on the selected Worker are preserved. If both values are supplied as Workers Builds variables, the deploy script passes them as runtime variables; this is useful when initializing a new Worker or rotating the Access application configuration. Supplying only one value is rejected.
 
 ## Secrets
 
@@ -77,7 +77,7 @@ Connect the same repository to both existing Workers in the Cloudflare Dashboard
 
 Keep non-production branch builds disabled on these persistent environment Workers. They are separate from the `staging` branch deployment and would otherwise create preview versions without providing another data environment.
 
-Set these build variables on each trigger:
+Build variables are optional for an existing Worker because its Access values are preserved by `--keep-vars`. Set both values on a trigger when initializing a new Worker or rotating its Access configuration:
 
 - `ACCESS_TEAM_DOMAIN`: the Cloudflare Access team domain.
 - `ACCESS_AUD`: the Access application audience for that Worker; mark it as a build secret.
@@ -93,7 +93,7 @@ Cloudflare documents this multi-Worker and Wrangler environment setup in [Advanc
 mise run deploy
 ```
 
-`mise run deploy` runs the production deployment. Staging can be deployed with `mise run deploy:staging`. Both commands publish the selected Worker with the matching Wrangler environment, disable automatic resource creation, preserve existing dashboard variables, inject the Access values from the build environment, and then apply the matching remote migrations with:
+`mise run deploy` runs the production deployment. Staging can be deployed with `mise run deploy:staging`. Both commands publish the selected Worker with the matching Wrangler environment, disable automatic resource creation, preserve existing dashboard variables, optionally apply Access values from the build environment, and then apply the matching remote migrations with:
 
 ```sh
 pnpm run db:migrate:staging

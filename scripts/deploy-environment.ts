@@ -5,8 +5,19 @@ type DeploymentEnvironment = 'staging' | 'production';
 
 const repositoryRoot = fileURLToPath(new URL('..', import.meta.url));
 const environment = parseEnvironment(process.argv[2]);
-const accessTeamDomain = requiredBuildVariable('ACCESS_TEAM_DOMAIN');
-const accessAudience = requiredBuildVariable('ACCESS_AUD');
+const accessTeamDomain = optionalBuildVariable('ACCESS_TEAM_DOMAIN');
+const accessAudience = optionalBuildVariable('ACCESS_AUD');
+
+if ((accessTeamDomain === undefined) !== (accessAudience === undefined)) {
+  throw new Error(
+    'ACCESS_TEAM_DOMAIN and ACCESS_AUD must be set together in the Workers Builds environment.',
+  );
+}
+
+const accessVariableArguments =
+  accessTeamDomain === undefined || accessAudience === undefined
+    ? []
+    : ['--var', `ACCESS_TEAM_DOMAIN:${accessTeamDomain}`, '--var', `ACCESS_AUD:${accessAudience}`];
 
 run(
   'pnpm',
@@ -20,10 +31,7 @@ run(
     environment,
     '--experimental-auto-create=false',
     '--keep-vars',
-    '--var',
-    `ACCESS_TEAM_DOMAIN:${accessTeamDomain}`,
-    '--var',
-    `ACCESS_AUD:${accessAudience}`,
+    ...accessVariableArguments,
   ],
   'Worker deploy',
 );
@@ -35,13 +43,10 @@ function parseEnvironment(value: string | undefined): DeploymentEnvironment {
   throw new Error('Usage: deploy-environment.ts <staging|production>.');
 }
 
-function requiredBuildVariable(name: string): string {
+function optionalBuildVariable(name: string): string | undefined {
   const value = process.env[name];
   const trimmed = value?.trim();
-  if (trimmed === undefined || trimmed.length === 0 || trimmed === 'unset') {
-    throw new Error(`${name} must be set in the Workers Builds environment.`);
-  }
-  return trimmed;
+  return trimmed === undefined || trimmed.length === 0 || trimmed === 'unset' ? undefined : trimmed;
 }
 
 function run(command: string, arguments_: string[], label: string): void {

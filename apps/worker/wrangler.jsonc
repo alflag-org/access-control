@@ -10,8 +10,6 @@
   "vars": {
     "ENVIRONMENT": "production",
     "ALLOW_LOCAL_AUTH": "false",
-    "ACCESS_TEAM_DOMAIN": "unset",
-    "ACCESS_AUD": "unset",
     "LOCAL_BOOTSTRAP_IDENTITY": "unset",
     "PROVIDER_WRITES_ENABLED": "false",
   },
@@ -59,8 +57,6 @@
       "vars": {
         "ENVIRONMENT": "staging",
         "ALLOW_LOCAL_AUTH": "false",
-        "ACCESS_TEAM_DOMAIN": "unset",
-        "ACCESS_AUD": "unset",
         "LOCAL_BOOTSTRAP_IDENTITY": "unset",
         "PROVIDER_WRITES_ENABLED": "false",
       },
@@ -105,8 +101,6 @@
       "vars": {
         "ENVIRONMENT": "production",
         "ALLOW_LOCAL_AUTH": "false",
-        "ACCESS_TEAM_DOMAIN": "unset",
-        "ACCESS_AUD": "unset",
         "LOCAL_BOOTSTRAP_IDENTITY": "unset",
         "PROVIDER_WRITES_ENABLED": "false",
       },
