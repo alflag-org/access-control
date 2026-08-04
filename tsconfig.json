@@ -1,0 +1,42 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "WebWorker"],
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "resolveJsonModule": true,
+    "allowJs": false,
+    "noEmit": true,
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "exactOptionalPropertyTypes": true,
+    "noFallthroughCasesInSwitch": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@access-control/domain": ["packages/domain/src/index.ts"],
+      "@access-control/application": ["packages/application/src/index.ts"],
+      "@access-control/contracts": ["packages/contracts/src/index.ts"],
+      "@access-control/config": ["packages/config/src/index.ts"],
+      "@access-control/events": ["packages/events/src/index.ts"],
+      "@access-control/d1": ["packages/adapters/d1/src/index.ts"],
+      "@access-control/google": ["packages/adapters/google/src/index.ts"],
+      "@access-control/github": ["packages/adapters/github/src/index.ts"],
+      "@access-control/proxmox": ["packages/adapters/proxmox/src/index.ts"],
+      "@access-control/zabbix": ["packages/adapters/zabbix/src/index.ts"],
+      "@access-control/posix": ["packages/adapters/posix/src/index.ts"]
+    },
+    "types": ["node", "vitest/globals", "@cloudflare/vitest-pool-workers/types"]
+  },
+  "include": [
+    "apps",
+    "packages",
+    "scripts",
+    "test",
+    "playwright.config.ts",
+    "vitest.config.ts",
+    "worker-configuration.d.ts"
+  ]
+}

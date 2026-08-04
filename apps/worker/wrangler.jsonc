@@ -1,0 +1,53 @@
+{
+  "$schema": "../../node_modules/wrangler/config-schema.json",
+  "name": "access-control",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-07-30",
+  "compatibility_flags": ["nodejs_compat"],
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "ENVIRONMENT": "production",
+    "ALLOW_LOCAL_AUTH": "false",
+    "ACCESS_TEAM_DOMAIN": "unset",
+    "ACCESS_AUD": "unset",
+    "LOCAL_BOOTSTRAP_IDENTITY": "unset",
+    "PROVIDER_WRITES_ENABLED": "false",
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "migrations_dir": "../../migrations",
+    },
+  ],
+  "r2_buckets": [
+    {
+      "binding": "EXPORTS_BUCKET",
+    },
+  ],
+  "queues": {
+    "producers": [
+      {
+        "binding": "OUTBOX_QUEUE",
+        "queue": "access-control-outbox",
+      },
+    ],
+    "consumers": [
+      {
+        "queue": "access-control-outbox",
+        "max_batch_size": 10,
+        "max_batch_timeout": 10,
+        "max_retries": 3,
+        "dead_letter_queue": "access-control-dead-letter",
+      },
+    ],
+  },
+  "observability": {
+    "enabled": true,
+    "logs": { "enabled": true, "head_sampling_rate": 1 },
+    "traces": { "enabled": true, "head_sampling_rate": 0.01 },
+  },
+  "triggers": {
+    "crons": ["0 */6 * * *"],
+  },
+}

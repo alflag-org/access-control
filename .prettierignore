@@ -1,0 +1,11 @@
+.wrangler/
+.editorconfig
+.gitignore
+LICENSE
+mise.lock
+mise.toml
+coverage/
+node_modules/
+playwright-report/
+test-results/
+worker-configuration.d.ts

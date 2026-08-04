@@ -1,0 +1,5 @@
+{
+  "name": "@access-control/worker",
+  "private": true,
+  "type": "module"
+}

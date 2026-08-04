@@ -1,0 +1,30 @@
+[settings]
+lockfile = true
+
+[tools]
+node = "24.18.1"
+"npm:pnpm" = "11.20.0"
+
+[tasks.bootstrap]
+description = "Install locked dependencies and generate Worker binding types"
+run = ["pnpm install --frozen-lockfile", "pnpm run types"]
+
+[tasks.check]
+description = "Run all static checks and tests"
+run = "pnpm check"
+
+[tasks.dev]
+description = "Start the local Worker development server"
+run = "pnpm dev"
+
+[tasks.smoke]
+description = "Apply local migrations and run the Worker smoke test"
+run = "pnpm smoke"
+
+[tasks.deploy-dry-run]
+description = "Validate the Worker deployment without publishing it"
+run = "pnpm deploy:dry-run"
+
+[tasks.deploy]
+description = "Deploy the Worker, provision bindings, and apply D1 migrations"
+run = "pnpm deploy"
