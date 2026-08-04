@@ -6,6 +6,7 @@
   "compatibility_flags": ["nodejs_compat"],
   "workers_dev": true,
   "preview_urls": false,
+  "keep_vars": true,
   "vars": {
     "ENVIRONMENT": "production",
     "ALLOW_LOCAL_AUTH": "false",
@@ -49,5 +50,99 @@
   },
   "triggers": {
     "crons": ["0 */6 * * *"],
+  },
+  "env": {
+    "staging": {
+      "name": "access-control-staging",
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": {
+        "ENVIRONMENT": "staging",
+        "ALLOW_LOCAL_AUTH": "false",
+        "ACCESS_TEAM_DOMAIN": "unset",
+        "ACCESS_AUD": "unset",
+        "LOCAL_BOOTSTRAP_IDENTITY": "unset",
+        "PROVIDER_WRITES_ENABLED": "false",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "access-control-staging",
+          "migrations_dir": "../../migrations",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "EXPORTS_BUCKET",
+          "bucket_name": "access-control-staging-exports",
+        },
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "OUTBOX_QUEUE",
+            "queue": "access-control-staging-outbox",
+          },
+        ],
+        "consumers": [
+          {
+            "queue": "access-control-staging-outbox",
+            "max_batch_size": 10,
+            "max_batch_timeout": 10,
+            "max_retries": 3,
+            "dead_letter_queue": "access-control-staging-dead-letter",
+          },
+        ],
+      },
+      "triggers": {
+        "crons": ["0 */6 * * *"],
+      },
+    },
+    "production": {
+      "name": "access-control-prod",
+      "workers_dev": false,
+      "preview_urls": false,
+      "vars": {
+        "ENVIRONMENT": "production",
+        "ALLOW_LOCAL_AUTH": "false",
+        "ACCESS_TEAM_DOMAIN": "unset",
+        "ACCESS_AUD": "unset",
+        "LOCAL_BOOTSTRAP_IDENTITY": "unset",
+        "PROVIDER_WRITES_ENABLED": "false",
+      },
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "access-control-prod",
+          "migrations_dir": "../../migrations",
+        },
+      ],
+      "r2_buckets": [
+        {
+          "binding": "EXPORTS_BUCKET",
+          "bucket_name": "access-control-prod-exports",
+        },
+      ],
+      "queues": {
+        "producers": [
+          {
+            "binding": "OUTBOX_QUEUE",
+            "queue": "access-control-prod-outbox",
+          },
+        ],
+        "consumers": [
+          {
+            "queue": "access-control-prod-outbox",
+            "max_batch_size": 10,
+            "max_batch_timeout": 10,
+            "max_retries": 3,
+            "dead_letter_queue": "access-control-prod-dead-letter",
+          },
+        ],
+      },
+      "triggers": {
+        "crons": ["0 */6 * * *"],
+      },
+    },
   },
 }

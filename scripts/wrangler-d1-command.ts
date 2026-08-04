@@ -2,7 +2,7 @@ import { spawnSync } from 'node:child_process';
 
 export interface D1CommandTarget {
   database: string;
-  environment: 'development' | 'production';
+  environment: 'development' | 'staging' | 'production';
 }
 
 export function executeD1Sql(target: D1CommandTarget, sql: string): unknown {

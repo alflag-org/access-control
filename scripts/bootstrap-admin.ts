@@ -22,7 +22,7 @@ const { values } = parseArgs({
 
 const input = z
   .object({
-    environment: z.enum(['development', 'production']),
+    environment: z.enum(['development', 'staging', 'production']),
     database: z.string().trim().min(1).max(128),
     identity: z.string().regex(/^access:[A-Za-z0-9][A-Za-z0-9._:-]{0,159}$/),
     issuer: httpsUrlSchema.max(500).optional(),
