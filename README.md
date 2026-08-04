@@ -26,8 +26,8 @@ The application stores its runtime records in Cloudflare D1, uses Cloudflare Que
 The following software is required to run the application locally:
 
 - Node.js 24.x
-- pnpm 8.x
-- Wrangler 3.x
+- pnpm 11.20.x
+- Wrangler 4.x (the repository uses the locked version from `package.json`)
 
 The following Cloudflare services are required to run the application in production:
 
@@ -62,10 +62,11 @@ Local authentication is enabled by the `mise run dev` command only for loopback 
 pnpm exec wrangler login
 pnpm run config -- validate --file config/example.json
 mise run deploy-dry-run
-mise run deploy
+mise run deploy:staging
+mise run deploy:production
 ```
 
-The deployment command applies the remote D1 migrations after publishing the Worker. Complete the account-specific binding and Access settings described in [Deployment](docs/deployment.md) before running it. Bootstrap the first production administrator with `scripts/bootstrap-admin.ts` after the database is available.
+Configure the existing staging and production Workers in Cloudflare Workers Builds as described in [Deployment](docs/deployment.md). Each deployment applies the matching remote D1 migrations after publishing the Worker. Bootstrap the first administrator in each environment after its database is available.
 
 ## License
 

@@ -39,8 +39,10 @@ mise run bootstrap
 | `mise run dev`                                           | Starts the local Worker with loopback development authentication                                                 |
 | `mise run smoke`                                         | Applies local D1 migrations and runs the Worker runtime integration test                                         |
 | `mise run check`                                         | Validates the example manifest, generates binding types, runs TypeScript, ESLint, Prettier, and all Vitest tests |
-| `mise run deploy-dry-run`                                | Builds and validates the Worker deployment without publishing it                                                 |
-| `mise run deploy`                                        | Publishes the Worker and applies remote D1 migrations                                                            |
+| `mise run deploy-dry-run`                                | Builds and validates both named Worker environments without publishing them                                      |
+| `mise run deploy`                                        | Publishes the production Worker and applies production D1 migrations                                             |
+| `mise run deploy:staging`                                | Publishes the staging Worker and applies staging D1 migrations                                                   |
+| `mise run deploy:production`                             | Publishes the production Worker and applies production D1 migrations                                             |
 | `pnpm run db:migrate:local`                              | Applies the ordered migrations to the local D1 database                                                          |
 | `pnpm run config -- validate --file config/example.json` | Validates a runtime configuration manifest without contacting the API                                            |
 | `git diff --check`                                       | Checks changed files for whitespace errors                                                                       |
@@ -57,7 +59,7 @@ The CI workflow runs `mise run bootstrap`, `mise run smoke`, `mise run check`, `
 - Keep configuration manifests, fixtures, and tests limited to fictional identities, resources, and provider responses.
 - Use runtime binding names such as `GOOGLE_CREDENTIAL` or `GITHUB_CREDENTIAL` instead of credential values in manifests.
 
-Do not commit credentials, Cloudflare Access assertions, provider responses, local Wrangler state, generated runtime types, or account-specific resource identifiers.
+Do not commit credentials, Cloudflare Access assertions, provider responses, local Wrangler state, generated runtime types, Cloudflare account IDs, or D1 UUIDs.
 
 ## Database changes
 

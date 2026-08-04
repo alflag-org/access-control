@@ -29,6 +29,13 @@ describe('Worker authentication, authorization, and portal integration', () => {
         LOCAL_BOOTSTRAP_IDENTITY: 'unset',
       }),
     ).toThrowError(expect.objectContaining({ code: 'access_configuration_missing' }));
+    expect(() =>
+      assertProductionAccessConfiguration({
+        ENVIRONMENT: 'production',
+        ALLOW_LOCAL_AUTH: 'false',
+        LOCAL_BOOTSTRAP_IDENTITY: 'unset',
+      }),
+    ).toThrowError(expect.objectContaining({ code: 'access_configuration_missing' }));
   });
 
   it('permits local identity headers only in explicit loopback development requests', async () => {

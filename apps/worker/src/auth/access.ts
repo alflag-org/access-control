@@ -14,8 +14,8 @@ const accessPrincipalSchema = z
 export type AccessPrincipal = z.infer<typeof accessPrincipalSchema>;
 
 export interface AccessEnvironment {
-  ACCESS_AUD: string;
-  ACCESS_TEAM_DOMAIN: string;
+  ACCESS_AUD?: string;
+  ACCESS_TEAM_DOMAIN?: string;
   ALLOW_LOCAL_AUTH: string;
   ENVIRONMENT: string;
   LOCAL_BOOTSTRAP_IDENTITY: string;
@@ -81,7 +81,12 @@ export async function authenticateAccessPrincipal(
   return verifyAccessJwt(assertion, normalizeTeamDomain(env.ACCESS_TEAM_DOMAIN), env.ACCESS_AUD);
 }
 
-export function assertProductionAccessConfiguration(env: AccessEnvironment): void {
+export function assertProductionAccessConfiguration(
+  env: AccessEnvironment,
+): asserts env is AccessEnvironment & {
+  ACCESS_AUD: string;
+  ACCESS_TEAM_DOMAIN: string;
+} {
   if (env.ALLOW_LOCAL_AUTH === 'true') {
     throw new AccessControlError(
       503,
@@ -89,13 +94,20 @@ export function assertProductionAccessConfiguration(env: AccessEnvironment): voi
       'Local authentication is forbidden outside development.',
     );
   }
-  if (env.ACCESS_TEAM_DOMAIN === 'unset' || env.ACCESS_AUD === 'unset') {
+  if (
+    !isConfiguredAccessValue(env.ACCESS_TEAM_DOMAIN) ||
+    !isConfiguredAccessValue(env.ACCESS_AUD)
+  ) {
     throw new AccessControlError(
       503,
       'access_configuration_missing',
       'Cloudflare Access configuration has not been supplied.',
     );
   }
+}
+
+function isConfiguredAccessValue(value: string | undefined): value is string {
+  return value !== undefined && value.trim().length > 0 && value !== 'unset';
 }
 
 function isLoopbackRequest(request: Request): boolean {
