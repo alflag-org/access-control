@@ -43,6 +43,8 @@ interface AccessJwk {
   use?: string;
 }
 
+const SIGNING_KEY_FETCH_ATTEMPTS = 2;
+
 export async function authenticateAccessPrincipal(
   request: Request,
   env: AccessEnvironment,
@@ -228,32 +230,70 @@ function normalizeTeamDomain(value: string): string {
 
 async function getSigningKeys(teamDomain: string): Promise<AccessJwk[]> {
   const certificateUrl = `https://${teamDomain}/cdn-cgi/access/certs`;
-  const cacheKey = new Request(certificateUrl);
-  const cache = await caches.open('access-control-access-jwks');
-  let response = await cache.match(cacheKey);
-  if (response === undefined) {
+  // The Cache API is unavailable when this Worker is fronted by Cloudflare Access.
+  // Let the Access endpoint's HTTP cache headers handle caching for the subrequest.
+  for (let attempt = 1; attempt <= SIGNING_KEY_FETCH_ATTEMPTS; attempt += 1) {
+    let response: Response;
     try {
       response = await fetch(certificateUrl, {
-        redirect: 'error',
+        ...(attempt > 1 ? { cache: 'no-cache' as const } : {}),
+        redirect: 'follow',
         headers: { accept: 'application/json' },
       });
-    } catch {
-      throw new AccessControlError(
-        503,
-        'access_keys_unavailable',
-        'Cloudflare Access signing keys are unavailable.',
-      );
+    } catch (error) {
+      console.warn('cloudflare_access_signing_keys_fetch_failed', {
+        teamDomain,
+        attempt,
+        error: error instanceof Error ? error.message : String(error),
+      });
+      continue;
     }
     if (!response.ok) {
-      throw new AccessControlError(
-        503,
-        'access_keys_unavailable',
-        'Cloudflare Access signing keys are unavailable.',
-      );
+      console.warn('cloudflare_access_signing_keys_fetch_failed', {
+        teamDomain,
+        attempt,
+        status: response.status,
+        statusText: response.statusText,
+      });
+      continue;
     }
-    await cache.put(cacheKey, response.clone());
+    try {
+      return await parseSigningKeys(response);
+    } catch (error) {
+      if (
+        !(error instanceof AccessControlError) ||
+        error.code !== 'access_keys_invalid' ||
+        attempt === SIGNING_KEY_FETCH_ATTEMPTS
+      ) {
+        throw error;
+      }
+      console.warn('cloudflare_access_signing_keys_fetch_failed', {
+        teamDomain,
+        attempt,
+        reason: 'invalid_response',
+      });
+    }
   }
-  return parseJwks(await response.json<unknown>());
+  throw new AccessControlError(
+    503,
+    'access_keys_unavailable',
+    'Cloudflare Access signing keys are unavailable.',
+  );
+}
+
+async function parseSigningKeys(response: Response): Promise<AccessJwk[]> {
+  try {
+    return parseJwks(await response.json<unknown>());
+  } catch (error) {
+    if (error instanceof AccessControlError && error.code === 'access_keys_invalid') {
+      throw error;
+    }
+    throw new AccessControlError(
+      503,
+      'access_keys_invalid',
+      'Cloudflare Access signing keys are invalid.',
+    );
+  }
 }
 
 function parseJwks(value: unknown): AccessJwk[] {
