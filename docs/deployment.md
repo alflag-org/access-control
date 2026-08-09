@@ -84,15 +84,18 @@ pnpm deployment generate \
 
 ## Deployment secrets
 
-Store secrets in the matching protected GitHub Environment. A deployment workflow needs:
+Store secrets in the matching protected GitHub Environment. An environment with pull request
+planning and deployment needs:
 
-| GitHub Environment secret | Use                                                                                             |
-| ------------------------- | ----------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_ACCOUNT_ID`   | Cloudflare account containing the declared resources                                            |
-| `CLOUDFLARE_API_TOKEN`    | Least-privilege token for Worker, D1, R2, Queue, route, and secret changes used by the workflow |
-| `CF_ACCESS_CLIENT_ID`     | Cloudflare Access service token client ID used by configuration plan/apply                      |
-| `CF_ACCESS_CLIENT_SECRET` | Cloudflare Access service token client secret                                                   |
-| `WORKER_SECRET_VALUES`    | JSON object mapping every `credentialRef` in `runtime.json` to its secret value                 |
+| GitHub Environment secret      | Use                                                                                             |
+| ------------------------------ | ----------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_ACCOUNT_ID`        | Cloudflare account containing the declared resources                                            |
+| `CLOUDFLARE_API_TOKEN`         | Least-privilege token for Worker, D1, R2, Queue, route, and secret changes used by the workflow |
+| `CF_ACCESS_PLAN_CLIENT_ID`     | Access service token client ID used only for pull request plans                                 |
+| `CF_ACCESS_PLAN_CLIENT_SECRET` | Access service token client secret used only for pull request plans                             |
+| `CF_ACCESS_CLIENT_ID`          | Access service token client ID used for deployment plan/apply                                   |
+| `CF_ACCESS_CLIENT_SECRET`      | Access service token client secret used for deployment plan/apply                               |
+| `WORKER_SECRET_VALUES`         | JSON object mapping every `credentialRef` in `runtime.json` to its secret value                 |
 
 For example, an environment with two references stores this value in `WORKER_SECRET_VALUES`:
 
@@ -107,7 +110,9 @@ The map must contain exactly the credential references in the selected runtime m
 
 If the runtime manifest has no credential references, `WORKER_SECRET_VALUES` may be absent.
 
-The Access service token must be allowed by the environment's Access policy and mapped in Access Control to an active service Subject with the role required to read and change runtime configuration. Keep staging and production credentials separate.
+Both Access service tokens must be allowed by the environment's Access policy. Register the plan
+identity as an active protected `auditor` service Subject and the deployment identity as an active
+protected `operator` service Subject. Keep both identities separate between staging and production.
 
 ## First deployment
 
@@ -135,9 +140,18 @@ pnpm bootstrap:admin -- \
 
 The command refuses to create a second active administrator.
 
-Create a Cloudflare Access service token, allow it in the environment's Access policy, and
-register its exact JWT `common_name` as a protected service Subject. An active human
-administrator must already exist:
+Create separate plan and deployment Cloudflare Access service tokens, allow both in the
+environment's Access policy, and register each exact JWT `common_name` as a protected service
+Subject. An active human administrator must already exist:
+
+```sh
+pnpm bootstrap:service-principal -- \
+  --environment staging \
+  --database access-control-staging \
+  --issuer https://your-team.cloudflareaccess.com \
+  --common-name access-control-plan-staging \
+  --role auditor
+```
 
 ```sh
 pnpm bootstrap:service-principal -- \
@@ -149,8 +163,7 @@ pnpm bootstrap:service-principal -- \
 ```
 
 The command rejects a missing administrator or duplicate Access identity and writes the Subject,
-identity, role grant, audit event, and outbox record as one guarded D1 operation. Use `operator`
-for configuration deployment and `auditor` for read-only automation.
+identity, role grant, audit event, and outbox record as one guarded D1 operation.
 
 Create a runtime configuration plan with the environment's Access service token:
 
@@ -206,18 +219,34 @@ D1 migration files are append-only operational state. Do not rename, edit, or re
 
 ## Private workflow contract
 
-A thin private workflow should:
+A thin private workflow has separate pull request and deployment paths.
 
-1. check out the deployment repository;
+The pull request path first runs without secrets. It checks out the proposed deployment state and
+its immutable source release, installs locked dependencies, runs the source checks, validates all
+three manifests, and runs `deployment dry-run`.
+
+A second read-only job produces the runtime configuration plan with the plan identity. In GitHub
+Actions, run this job from the trusted base branch with `pull_request_target`. Do not check out or
+execute pull request code in that job. Use the base branch's workflow, `release.json`,
+`deployment.json`, and pinned source release; download the proposed `runtime.json` only as input
+data for the trusted `deployment plan` command. The job receives
+`CF_ACCESS_PLAN_CLIENT_ID` and `CF_ACCESS_PLAN_CLIENT_SECRET`, mapped to the CLI's
+`CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`. It receives no Cloudflare deployment token,
+Worker secret value, or deployment identity.
+
+After merge, the deployment path should:
+
+1. check out the merged deployment repository;
 2. read the chosen environment's `release.json`;
 3. check out that exact public repository and commit into a separate working directory;
 4. install the source repository's locked tools and dependencies;
-5. run `deployment validate` with the expected environment, repository, and checked-out commit;
-6. run the source repository checks and `deployment dry-run`;
-7. select the matching protected GitHub Environment; and
-8. run `deployment deploy` with only that environment's secrets.
+5. repeat the source checks, manifest validation, and `deployment dry-run`;
+6. select the matching protected GitHub Environment; and
+7. run `deployment deploy` with only that environment's deployment secrets.
 
-Use separate concurrency groups for staging and production, and disable cancellation once a state-changing deployment begins. Pull requests should run validation and dry-run only. Deployment should require `workflow_dispatch` or another explicit protected-environment approval.
+Use separate concurrency groups for staging and production, and disable cancellation once a
+state-changing deployment begins. Deployment should require `workflow_dispatch` or another
+explicit protected-environment approval.
 
 ## Promotion and rollback
 
