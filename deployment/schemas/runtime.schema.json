@@ -1,0 +1,619 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "organization": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 160
+        },
+        "supportUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "brandMarkUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "maxPlanChanges": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 10000
+        }
+      },
+      "required": [
+        "name",
+        "title",
+        "maxPlanChanges"
+      ],
+      "additionalProperties": false
+    },
+    "directorySources": {
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "const": "google"
+          },
+          "customerId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "delegatedAdmin": {
+            "type": "string",
+            "maxLength": 320,
+            "format": "email",
+            "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+          },
+          "credentialRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "accessGroupPrefix": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled",
+              "retired"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "customerId",
+          "delegatedAdmin",
+          "credentialRef",
+          "accessGroupPrefix",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "applications": {
+      "maxItems": 1000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 96,
+            "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "description": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 1000
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "launchUrl": {
+            "type": "string",
+            "maxLength": 2048,
+            "format": "uri"
+          },
+          "visibility": {
+            "type": "string",
+            "enum": [
+              "entitled",
+              "all_active_subjects"
+            ]
+          },
+          "authentication": {
+            "oneOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "cloudflare_oidc"
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "type",
+                  "reference"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "cloudflare_saml"
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "type",
+                  "reference"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "cloudflare_self_hosted"
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "type",
+                  "reference"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "direct_google"
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "type": {
+                    "type": "string",
+                    "const": "none"
+                  },
+                  "reference": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 500
+                  }
+                },
+                "required": [
+                  "type"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          },
+          "provisioningMode": {
+            "type": "string",
+            "enum": [
+              "none",
+              "jit",
+              "observe",
+              "plan",
+              "automatic"
+            ]
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled",
+              "retired"
+            ]
+          },
+          "entitlements": {
+            "maxItems": 1000,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 96,
+                  "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+                },
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 160
+                },
+                "description": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 1000
+                },
+                "requiresProvisioning": {
+                  "type": "boolean"
+                },
+                "status": {
+                  "type": "string",
+                  "enum": [
+                    "active",
+                    "disabled",
+                    "retired"
+                  ]
+                }
+              },
+              "required": [
+                "key",
+                "name",
+                "requiresProvisioning",
+                "status"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "key",
+          "name",
+          "category",
+          "launchUrl",
+          "visibility",
+          "authentication",
+          "provisioningMode",
+          "status",
+          "entitlements"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "providerConnections": {
+      "maxItems": 100,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "google",
+              "github",
+              "proxmox",
+              "zabbix",
+              "posix"
+            ]
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "observe",
+              "plan",
+              "automatic"
+            ]
+          },
+          "credentialRef": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128,
+            "pattern": "^[A-Z][A-Z0-9_]*$"
+          },
+          "configuration": {
+            "$ref": "#/$defs/JsonObject"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled",
+              "retired"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "name",
+          "mode",
+          "configuration",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "provisioningTargets": {
+      "maxItems": 1000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "providerConnectionId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "applicationKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 96,
+            "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+          },
+          "entitlementKey": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 96,
+            "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+          },
+          "targetType": {
+            "type": "string",
+            "enum": [
+              "github_organization_membership",
+              "github_team_membership",
+              "proxmox_group_membership",
+              "zabbix_saml_mapping",
+              "zabbix_scim_membership",
+              "posix_account",
+              "posix_group_membership",
+              "posix_sudo"
+            ]
+          },
+          "providerTargetId": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 500
+          },
+          "mode": {
+            "type": "string",
+            "enum": [
+              "observe",
+              "plan",
+              "automatic"
+            ]
+          },
+          "protected": {
+            "type": "boolean"
+          },
+          "configuration": {
+            "$ref": "#/$defs/JsonObject"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "disabled",
+              "retired"
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "providerConnectionId",
+          "applicationKey",
+          "entitlementKey",
+          "targetType",
+          "providerTargetId",
+          "mode",
+          "protected",
+          "configuration",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "mappings": {
+      "maxItems": 10000,
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 160,
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+          },
+          "sourceGroup": {
+            "type": "object",
+            "properties": {
+              "providerGroupId": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 256
+              },
+              "expectedEmail": {
+                "type": "string",
+                "maxLength": 320,
+                "format": "email",
+                "pattern": "^(?!\\.)(?!.*\\.\\.)([A-Za-z0-9_'+\\-\\.]*)[A-Za-z0-9_+-]@([A-Za-z0-9][A-Za-z0-9\\-]*\\.)+[A-Za-z]{2,}$"
+              }
+            },
+            "required": [
+              "providerGroupId",
+              "expectedEmail"
+            ],
+            "additionalProperties": false
+          },
+          "entitlements": {
+            "minItems": 1,
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "applicationKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 96,
+                  "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+                },
+                "entitlementKey": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 96,
+                  "pattern": "^[a-z][a-z0-9]*(?:[._-][a-z0-9]+)*$"
+                }
+              },
+              "required": [
+                "applicationKey",
+                "entitlementKey"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "provisioningTargetIds": {
+            "maxItems": 100,
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 160,
+              "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]*$"
+            }
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "active",
+              "retired"
+            ]
+          },
+          "validFrom": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          },
+          "validUntil": {
+            "type": "string",
+            "format": "date-time",
+            "pattern": "^(?:(?:\\d\\d[2468][048]|\\d\\d[13579][26]|\\d\\d0[48]|[02468][048]00|[13579][26]00)-02-29|\\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\\d|30)|(?:02)-(?:0[1-9]|1\\d|2[0-8])))T(?:(?:[01]\\d|2[0-3]):[0-5]\\d(?::[0-5]\\d(?:\\.\\d+)?)?(?:Z|([+-](?:[01]\\d|2[0-3]):[0-5]\\d)))$"
+          }
+        },
+        "required": [
+          "id",
+          "sourceGroup",
+          "entitlements",
+          "provisioningTargetIds",
+          "status"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "organization",
+    "directorySources",
+    "applications",
+    "providerConnections",
+    "provisioningTargets",
+    "mappings"
+  ],
+  "additionalProperties": false,
+  "$defs": {
+    "JsonObject": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/JsonValue"
+      }
+    },
+    "JsonValue": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "null"
+        },
+        {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        },
+        {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/JsonValue"
+          }
+        }
+      ]
+    }
+  },
+  "$id": "https://access-control.example/schemas/runtime.schema.json",
+  "title": "Access Control runtime desired state"
+}

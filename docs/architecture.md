@@ -6,7 +6,7 @@ The Cloudflare Worker in `apps/worker/src/index.ts` exposes three handlers:
 
 - `fetch` serves the browser portal, JSON API, OpenAPI document, and Swagger UI.
 - `queue` consumes outbox messages and materializes recovery exports when requested.
-- `scheduled` runs every six hours from the cron trigger in `apps/worker/wrangler.jsonc`. It expires managed guests and dispatches pending outbox records.
+- `scheduled` runs on the cron schedules in the selected deployment manifest. It expires managed guests and dispatches pending outbox records.
 
 The Worker uses Hono and OpenAPIHono for routing and Zod schemas for request and response validation. A request receives a request ID, is authenticated, is mapped to a Subject and active roles, and then reaches an authorized route handler.
 
@@ -19,7 +19,7 @@ The Worker uses Hono and OpenAPIHono for routing and Zod schemas for request and
 | Queue             | `OUTBOX_QUEUE`   | Asynchronous delivery of audit-linked outbox messages and export materialization                                                                                   |
 | Cloudflare Access | request JWT      | External authentication and principal identity                                                                                                                     |
 
-The Worker configuration enables observability logs and traces, Node.js compatibility, and the `0 */6 * * *` cron trigger.
+The public Worker base enables observability and Node.js compatibility. A generated deployment configuration supplies routes, resources, Access settings, feature gates, and cron schedules for one environment.
 
 ## Package boundaries
 
@@ -32,6 +32,7 @@ packages/application      Use cases and repository ports
 packages/adapters/d1      D1 repository implementations
 packages/adapters/*      External directory and provider adapters
 packages/config           Manifest validation, plan generation, and API apply client
+packages/deployment       Environment manifest validation and Wrangler configuration generation
 packages/contracts        Shared API, directory, export, and provider contracts
 ```
 

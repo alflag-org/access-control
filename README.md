@@ -56,17 +56,22 @@ The local Worker listens on `http://localhost:8787`. Open `http://localhost:8787
 
 Local authentication is enabled by the `mise run dev` command only for loopback requests. The default development identity is `access:local-admin`; a request can override it with the `x-access-control-dev-identity` header using the `access:<subject>` or `service:<common-name>` format.
 
-## Deploy
+## Deploy an instance
+
+Keep real environment state in a standalone private deployment repository. Each environment selects an immutable source commit and supplies three manifests:
+
+- `release.json` selects this repository and a full Git commit SHA.
+- `deployment.json` selects the Worker and Cloudflare resources.
+- `runtime.json` declares the instance's runtime desired state with credential references instead of credential values.
+
+Validate the fictional example and build its generated Worker configuration without publishing:
 
 ```sh
-pnpm exec wrangler login
-pnpm run config -- validate --file config/example.json
+pnpm deployment validate --directory deployment/example
 mise run deploy-dry-run
-mise run deploy:staging
-mise run deploy:production
 ```
 
-Configure the existing staging and production Workers in Cloudflare Workers Builds as described in [Deployment](docs/deployment.md). Each deployment applies the matching remote D1 migrations after publishing the Worker. Bootstrap the first administrator in each environment after its database is available.
+This public repository does not deploy a persistent environment automatically. See [Deployment](docs/deployment.md) for the private repository boundary, schemas, secrets, first deployment, promotion, and rollback contract.
 
 ## License
 

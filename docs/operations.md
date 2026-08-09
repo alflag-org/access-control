@@ -85,7 +85,7 @@ Successful mutating API requests create an audit event and an outbox record in t
 
 ## Logs and checks
 
-Worker observability is enabled in `apps/worker/wrangler.jsonc`. Structured error logs include an error code and request ID; provider and Queue handlers log stable error codes without logging credential values.
+Worker observability defaults are defined in `apps/worker/wrangler.json` and may be narrowed by the selected deployment manifest. Structured error logs include an error code and request ID; provider and Queue handlers log stable error codes without logging credential values.
 
 For a local runtime check:
 

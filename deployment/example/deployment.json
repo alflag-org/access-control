@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "environment": "staging",
+  "worker": {
+    "name": "access-control-staging",
+    "baseUrl": "https://access-control.example.com",
+    "routes": [
+      {
+        "pattern": "access-control.example.com",
+        "customDomain": true
+      }
+    ]
+  },
+  "resources": {
+    "database": {
+      "name": "access-control-staging",
+      "id": "00000000-0000-4000-8000-000000000001"
+    },
+    "exportsBucket": "access-control-staging-exports",
+    "outboxQueue": "access-control-staging-outbox",
+    "deadLetterQueue": "access-control-staging-dead-letter"
+  },
+  "access": {
+    "teamDomain": "example.cloudflareaccess.com",
+    "audience": "example-access-audience"
+  },
+  "features": {
+    "providerWritesEnabled": false
+  },
+  "crons": ["0 */6 * * *"]
+}

@@ -5,6 +5,7 @@ LICENSE
 mise.lock
 mise.toml
 coverage/
+deployment/schemas/
 node_modules/
 playwright-report/
 test-results/

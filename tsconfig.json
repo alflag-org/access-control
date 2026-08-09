@@ -20,6 +20,7 @@
       "@access-control/application": ["packages/application/src/index.ts"],
       "@access-control/contracts": ["packages/contracts/src/index.ts"],
       "@access-control/config": ["packages/config/src/index.ts"],
+      "@access-control/deployment": ["packages/deployment/src/index.ts"],
       "@access-control/events": ["packages/events/src/index.ts"],
       "@access-control/d1": ["packages/adapters/d1/src/index.ts"],
       "@access-control/google": ["packages/adapters/google/src/index.ts"],

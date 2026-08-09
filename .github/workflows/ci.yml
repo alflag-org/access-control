@@ -46,7 +46,7 @@ jobs:
       - name: Run repository checks
         run: mise run check
 
-      - name: Validate the production bundle
+      - name: Validate the fictional deployment bundle
         run: mise run deploy-dry-run
 
       - name: Reject whitespace errors
