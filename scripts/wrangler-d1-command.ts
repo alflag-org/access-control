@@ -17,6 +17,7 @@ export function executeD1Sql(target: D1CommandTarget, sql: string): unknown {
     '--command',
     sql,
     '--json',
+    '--experimental-auto-create=false',
   ];
   if (target.environment === 'development') {
     arguments_.push('--local');
