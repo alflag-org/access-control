@@ -7,7 +7,7 @@ export default defineConfig({
     cloudflareTest(async () => ({
       main: './apps/worker/src/index.ts',
       wrangler: {
-        configPath: './apps/worker/wrangler.jsonc',
+        configPath: './apps/worker/wrangler.json',
       },
       miniflare: {
         bindings: {
@@ -25,6 +25,7 @@ export default defineConfig({
       '@access-control/application': repositoryFile('./packages/application/src/index.ts'),
       '@access-control/contracts': repositoryFile('./packages/contracts/src/index.ts'),
       '@access-control/config': repositoryFile('./packages/config/src/index.ts'),
+      '@access-control/deployment': repositoryFile('./packages/deployment/src/index.ts'),
       '@access-control/events': repositoryFile('./packages/events/src/index.ts'),
       '@access-control/d1': repositoryFile('./packages/adapters/d1/src/index.ts'),
       '@access-control/google': repositoryFile('./packages/adapters/google/src/index.ts'),

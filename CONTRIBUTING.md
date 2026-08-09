@@ -8,10 +8,12 @@ packages/domain/             Domain schemas, entities, and invariants
 packages/application/        Application services and repository ports
 packages/contracts/          API, directory, export, and provider contracts
 packages/config/             Runtime configuration validation, planning, and apply client
+packages/deployment/         Deployment manifest schemas and generated Wrangler configuration
 packages/adapters/d1/        Cloudflare D1 repositories
 packages/adapters/*/         Google, GitHub, Proxmox, Zabbix, and POSIX adapters
 migrations/                  Ordered D1 migrations
-scripts/                     Bootstrap and configuration commands
+deployment/                  Fictional manifests and generated JSON Schemas
+scripts/                     Bootstrap, configuration, and deployment commands
 test/                        Unit, integration, API, UI, and adapter tests
 ```
 
@@ -30,22 +32,21 @@ mise install --locked
 mise run bootstrap
 ```
 
-`mise run bootstrap` installs the locked pnpm workspace and generates `worker-configuration.d.ts` from `apps/worker/wrangler.jsonc`.
+`mise run bootstrap` installs the locked pnpm workspace and generates `worker-configuration.d.ts` from `apps/worker/wrangler.json`.
 
 ## Commands
 
-| Command                                                  | Effect                                                                                                           |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `mise run dev`                                           | Starts the local Worker with loopback development authentication                                                 |
-| `mise run smoke`                                         | Applies local D1 migrations and runs the Worker runtime integration test                                         |
-| `mise run check`                                         | Validates the example manifest, generates binding types, runs TypeScript, ESLint, Prettier, and all Vitest tests |
-| `mise run deploy-dry-run`                                | Builds and validates both named Worker environments without publishing them                                      |
-| `mise run deploy`                                        | Publishes the production Worker and applies production D1 migrations                                             |
-| `mise run deploy:staging`                                | Publishes the staging Worker and applies staging D1 migrations                                                   |
-| `mise run deploy:production`                             | Publishes the production Worker and applies production D1 migrations                                             |
-| `pnpm run db:migrate:local`                              | Applies the ordered migrations to the local D1 database                                                          |
-| `pnpm run config -- validate --file config/example.json` | Validates a runtime configuration manifest without contacting the API                                            |
-| `git diff --check`                                       | Checks changed files for whitespace errors                                                                       |
+| Command                                                       | Effect                                                                                               |
+| ------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------- |
+| `mise run dev`                                                | Starts the local Worker with loopback development authentication                                     |
+| `mise run smoke`                                              | Applies local D1 migrations and runs the Worker runtime integration test                             |
+| `mise run check`                                              | Validates fictional manifests and schemas, generates binding types, and runs static checks and tests |
+| `mise run deploy-dry-run`                                     | Builds the fictional deployment example without publishing it                                        |
+| `pnpm run db:migrate:local`                                   | Applies the ordered migrations to the local D1 database                                              |
+| `pnpm run config -- validate --file config/example.json`      | Validates a runtime configuration manifest without contacting the API                                |
+| `pnpm deployment validate --directory <path>`                 | Validates one complete environment manifest set                                                      |
+| `pnpm deployment generate --directory <path> --output <file>` | Generates one temporary Wrangler configuration for inspection                                        |
+| `git diff --check`                                            | Checks changed files for whitespace errors                                                           |
 
 The CI workflow runs `mise run bootstrap`, `mise run smoke`, `mise run check`, `mise run deploy-dry-run`, and `git diff --check` for pull requests and pushes to `master`.
 
@@ -63,6 +64,6 @@ Do not commit credentials, Cloudflare Access assertions, provider responses, loc
 
 ## Database changes
 
-Add a new ordered SQL file under `migrations/`. Apply it locally with `pnpm run db:migrate:local`; the same migration directory is used by `pnpm run db:migrate:remote` during deployment. Tests apply the migration set through the Cloudflare Worker test pool.
+Add a new ordered SQL file under `migrations/`. Never rename, edit, or remove an applied migration. Apply the complete set locally with `pnpm run db:migrate:local`. Tests apply the same migration set through the Cloudflare Worker test pool, and private deployment workflows use it from an immutable source commit.
 
 Use the pull request fields in [.github/pull_request_template.md](.github/pull_request_template.md) and keep unrelated changes separate.

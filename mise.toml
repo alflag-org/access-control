@@ -22,17 +22,5 @@ description = "Apply local migrations and run the Worker smoke test"
 run = "pnpm smoke"
 
 [tasks.deploy-dry-run]
-description = "Validate staging and production deployments without publishing them"
+description = "Validate the example deployment without publishing it"
 run = "pnpm deploy:dry-run"
-
-[tasks.deploy]
-description = "Deploy the production Worker and apply production D1 migrations"
-run = "pnpm deploy"
-
-[tasks.deploy-staging]
-description = "Deploy the staging Worker and apply staging D1 migrations"
-run = "pnpm deploy:staging"
-
-[tasks.deploy-production]
-description = "Deploy the production Worker and apply production D1 migrations"
-run = "pnpm deploy:production"

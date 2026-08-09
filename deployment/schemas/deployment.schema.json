@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "environment": {
+      "type": "string",
+      "enum": [
+        "staging",
+        "production"
+      ]
+    },
+    "worker": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9](?:[a-z0-9-]{0,253}[a-z0-9])?$"
+        },
+        "baseUrl": {
+          "type": "string",
+          "maxLength": 2048,
+          "format": "uri"
+        },
+        "routes": {
+          "minItems": 1,
+          "maxItems": 100,
+          "type": "array",
+          "items": {
+            "anyOf": [
+              {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "pattern": "^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+                  },
+                  "customDomain": {
+                    "type": "boolean",
+                    "const": true
+                  }
+                },
+                "required": [
+                  "pattern",
+                  "customDomain"
+                ],
+                "additionalProperties": false
+              },
+              {
+                "type": "object",
+                "properties": {
+                  "pattern": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 512
+                  },
+                  "zoneName": {
+                    "type": "string",
+                    "pattern": "^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+                  }
+                },
+                "required": [
+                  "pattern",
+                  "zoneName"
+                ],
+                "additionalProperties": false
+              }
+            ]
+          }
+        }
+      },
+      "required": [
+        "name",
+        "baseUrl",
+        "routes"
+      ],
+      "additionalProperties": false
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "database": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 255
+            },
+            "id": {
+              "type": "string",
+              "format": "uuid",
+              "pattern": "^([0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}|00000000-0000-0000-0000-000000000000|ffffffff-ffff-ffff-ffff-ffffffffffff)$"
+            }
+          },
+          "required": [
+            "name",
+            "id"
+          ],
+          "additionalProperties": false
+        },
+        "exportsBucket": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "outboxQueue": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        },
+        "deadLetterQueue": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 255
+        }
+      },
+      "required": [
+        "database",
+        "exportsBucket",
+        "outboxQueue",
+        "deadLetterQueue"
+      ],
+      "additionalProperties": false
+    },
+    "access": {
+      "type": "object",
+      "properties": {
+        "teamDomain": {
+          "type": "string",
+          "pattern": "^(?=.{1,253}$)(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\\.)+[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$"
+        },
+        "audience": {
+          "type": "string",
+          "minLength": 16,
+          "maxLength": 512
+        }
+      },
+      "required": [
+        "teamDomain",
+        "audience"
+      ],
+      "additionalProperties": false
+    },
+    "features": {
+      "type": "object",
+      "properties": {
+        "providerWritesEnabled": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "providerWritesEnabled"
+      ],
+      "additionalProperties": false
+    },
+    "observability": {
+      "type": "object",
+      "properties": {
+        "logsHeadSamplingRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        },
+        "tracesEnabled": {
+          "type": "boolean"
+        },
+        "tracesHeadSamplingRate": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      },
+      "additionalProperties": false
+    },
+    "crons": {
+      "maxItems": 20,
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "environment",
+    "worker",
+    "resources",
+    "access",
+    "features",
+    "crons"
+  ],
+  "additionalProperties": false,
+  "$id": "https://access-control.example/schemas/deployment.schema.json",
+  "title": "Access Control deployment configuration"
+}

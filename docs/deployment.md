@@ -1,142 +1,209 @@
 # Deployment
 
-## Deployment files
+## Repository boundary
 
-The Worker deployment is configured in `apps/worker/wrangler.jsonc`. The repository also contains the deployment tasks in `mise.toml` and the D1 migrations in `migrations/`.
+This repository is the Access Control source repository: the public application source, domain and configuration schemas, D1 migrations, tests, and environment-independent deployment tooling. It contains no real organization names, Cloudflare resource identifiers, hostnames, Access audiences, or credentials.
 
-The current base configuration has:
+A deployed instance uses a separate standalone private deployment repository. That repository stores desired state only:
 
-- Worker name `access-control` and entrypoint `apps/worker/src/index.ts`.
-- Compatibility date `2026-07-30` and `nodejs_compat`.
-- `workers_dev: true` and `preview_urls: false`.
-- D1 binding `DB` with migration directory `migrations`.
-- R2 binding `EXPORTS_BUCKET`.
-- Queue producer and consumer binding `OUTBOX_QUEUE` for `access-control-outbox`.
-- Queue batches of up to 10 messages, a 10-second maximum batch timeout, three retries, and dead-letter queue `access-control-dead-letter`.
-- Cron trigger `0 */6 * * *`.
-
-The named Wrangler environments target the existing Cloudflare resources:
-
-| Environment  | Worker                   | D1 database              | R2 bucket                        | Queue                           |
-| ------------ | ------------------------ | ------------------------ | -------------------------------- | ------------------------------- |
-| `staging`    | `access-control-staging` | `access-control-staging` | `access-control-staging-exports` | `access-control-staging-outbox` |
-| `production` | `access-control-prod`    | `access-control-prod`    | `access-control-prod-exports`    | `access-control-prod-outbox`    |
-
-The staging and production Workers use separate D1, R2, and Queue resources. The repository stores logical resource names but does not store the Cloudflare account ID or D1 UUIDs. Deployment disables automatic resource creation so a missing or misspelled resource fails the build instead of creating a new one.
-
-## Access configuration
-
-Set these Worker variables for a deployed environment:
-
-| Variable                   | Use                                                                             |
-| -------------------------- | ------------------------------------------------------------------------------- |
-| `ENVIRONMENT`              | `production`, `staging`, or `development`                                       |
-| `ACCESS_TEAM_DOMAIN`       | Cloudflare Access team domain; managed on the deployed Worker                   |
-| `ACCESS_AUD`               | Expected Cloudflare Access application audience; managed on the deployed Worker |
-| `ALLOW_LOCAL_AUTH`         | `false` for deployed environments                                               |
-| `LOCAL_BOOTSTRAP_IDENTITY` | Development-only fallback identity                                              |
-| `PROVIDER_WRITES_ENABLED`  | `false` unless GitHub writes are explicitly enabled                             |
-
-The Worker returns a configuration error when deployed Access settings are unset. Local authentication is rejected outside development and outside the loopback interface.
-
-`ACCESS_TEAM_DOMAIN` and `ACCESS_AUD` are intentionally omitted from the repository configuration. The deploy command uses `--keep-vars`, so existing values on the selected Worker are preserved. If both values are supplied as Workers Builds variables, the deploy script passes them as runtime variables; this is useful when initializing a new Worker or rotating the Access application configuration. Supplying only one value is rejected.
-
-## Secrets
-
-Set secrets with Wrangler. A Google Directory Source uses the secret name in its `credentialRef`; the current Worker reads the GitHub App credential from the fixed binding name `GITHUB_CREDENTIAL`:
-
-```sh
-pnpm exec wrangler secret put GOOGLE_CREDENTIAL --config apps/worker/wrangler.jsonc --env staging
-pnpm exec wrangler secret put GITHUB_CREDENTIAL --config apps/worker/wrangler.jsonc --env staging
-pnpm exec wrangler secret put GOOGLE_CREDENTIAL --config apps/worker/wrangler.jsonc --env production
-pnpm exec wrangler secret put GITHUB_CREDENTIAL --config apps/worker/wrangler.jsonc --env production
+```text
+environments/
+  staging/
+    release.json
+    deployment.json
+    runtime.json
+  production/
+    release.json
+    deployment.json
+    runtime.json
+.github/workflows/
+  validate.yml
+  deploy.yml
 ```
 
-The Google Directory secret is a JSON service-account credential with `client_email`, `private_key`, and the Google OAuth token URI. The GitHub secret is a JSON GitHub App credential with `appId`, `installationId`, and `privateKey`. The values are read from Worker bindings at request time and are not stored in the configuration manifest.
+Do not fork, mirror, copy, vendor, or submodule this source tree into the deployment repository. The deployment repository checks out the immutable source commit selected by each environment and runs the deployment commands from that checkout.
 
-## Resource and deployment checks
+The private deployment repository is the only deployment authority. Do not connect this public repository directly to a persistent Worker through Workers Builds or another automatic deployment integration.
 
-Authenticate Wrangler, validate the non-secret manifest, and validate the Worker bundle:
+## Environment manifests
+
+Each environment has three JSON files:
+
+| File              | Contents                                                                                                                                   |
+| ----------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `release.json`    | Source repository in `owner/name` form and a full 40-character lowercase Git commit SHA                                                    |
+| `deployment.json` | Worker name and URL, routes, D1/R2/Queue resources, Cloudflare Access settings, feature gates, observability overrides, and cron schedules |
+| `runtime.json`    | Organization settings, Directory Sources, applications, provider connections, provisioning targets, and mappings                           |
+
+`release.json` is the release pin. Branch names and tags are rejected because they can move.
+
+`deployment.json` contains identifiers and non-secret Cloudflare settings. Deployed environments force `workers_dev=false`, `preview_urls=false`, and `ALLOW_LOCAL_AUTH=false`. Automatic resource creation is disabled.
+
+`runtime.json` uses `credentialRef` values such as `GOOGLE_DIRECTORY_CREDENTIAL`. A credential reference is a Worker binding name, never a credential value.
+
+Schemas are committed under `deployment/schemas/`. `deployment/example/` is a fictional complete example. Regenerate or verify schemas with:
 
 ```sh
-pnpm exec wrangler login
-pnpm run config -- validate --file config/example.json
-mise run deploy-dry-run
+pnpm deployment:schemas
+pnpm deployment:schemas:check
 ```
 
-`mise run deploy-dry-run` validates both named environments with `wrangler deploy --dry-run`; it uploads no Worker version and reports the bundle and declared bindings.
+The command-line validator also checks relationships that cannot be expressed across three independent JSON Schema documents.
 
-## Workers Builds
+## Validate and build
 
-Connect the same repository to both existing Workers in the Cloudflare Dashboard. Use `/` as the root directory and `pnpm run check` as the build command. Configure the deploy commands as follows:
-
-| Worker                   | Production branch | Deploy command               |
-| ------------------------ | ----------------- | ---------------------------- |
-| `access-control-staging` | `staging`         | `pnpm run deploy:staging`    |
-| `access-control-prod`    | `master`          | `pnpm run deploy:production` |
-
-Keep non-production branch builds disabled on these persistent environment Workers. They are separate from the `staging` branch deployment and would otherwise create preview versions without providing another data environment.
-
-Build variables are optional for an existing Worker because its Access values are preserved by `--keep-vars`. Set both values on a trigger when initializing a new Worker or rotating its Access configuration:
-
-- `ACCESS_TEAM_DOMAIN`: the Cloudflare Access team domain.
-- `ACCESS_AUD`: the Access application audience for that Worker; mark it as a build secret.
-- `NODE_VERSION=24.18.1` and `PNPM_VERSION=11.20.0`.
-
-The Cloudflare Dashboard Worker name must match the `name` in the selected Wrangler environment. Do not connect Workers Builds until the existing Worker names and bindings have been verified.
-
-Cloudflare documents this multi-Worker and Wrangler environment setup in [Advanced setups](https://developers.cloudflare.com/workers/ci-cd/builds/advanced-setups/) and the [Workers Builds configuration reference](https://developers.cloudflare.com/workers/ci-cd/builds/configuration/).
-
-## Publish and migrate
+From a checkout of the source commit selected by `release.json`:
 
 ```sh
-mise run deploy
+source_commit=$(git rev-parse HEAD)
+
+pnpm deployment validate \
+  --directory /path/to/deployment-repository/environments/staging \
+  --expected-environment staging \
+  --source-repository example/access-control \
+  --source-commit "$source_commit"
+
+pnpm deployment dry-run \
+  --directory /path/to/deployment-repository/environments/staging \
+  --expected-environment staging \
+  --source-repository example/access-control \
+  --source-commit "$source_commit"
 ```
 
-`mise run deploy` runs the production deployment. Staging can be deployed with `mise run deploy:staging`. Both commands publish the selected Worker with the matching Wrangler environment, disable automatic resource creation, preserve existing dashboard variables, optionally apply Access values from the build environment, and then apply the matching remote migrations with:
+`validate` rejects unknown fields, movable release pins, mismatched environments, source checkout mismatches, invalid resource values, plaintext credential-like fields, and inconsistent runtime references.
+
+`dry-run` combines `apps/worker/wrangler.json` with one `deployment.json` in a temporary generated Wrangler configuration, then runs `wrangler deploy --dry-run` with automatic resource creation disabled. The generated file is not deployment state and must not be committed.
+
+Use `generate` only when inspecting that intermediate configuration:
 
 ```sh
-pnpm run db:migrate:staging
-pnpm run db:migrate:production
+pnpm deployment generate \
+  --directory /path/to/environment \
+  --output /tmp/access-control-wrangler.json
 ```
 
-The migration directory is ordered by filename. Apply the same directory to a local database with `pnpm run db:migrate:local`.
+## Deployment secrets
 
-## First administrator
+Store secrets in the matching protected GitHub Environment. A deployment workflow needs:
 
-The first administrator is created by `scripts/bootstrap-admin.ts`. The command refuses to create another active administrator when one already exists.
+| GitHub Environment secret | Use                                                                                             |
+| ------------------------- | ----------------------------------------------------------------------------------------------- |
+| `CLOUDFLARE_ACCOUNT_ID`   | Cloudflare account containing the declared resources                                            |
+| `CLOUDFLARE_API_TOKEN`    | Least-privilege token for Worker, D1, R2, Queue, route, and secret changes used by the workflow |
+| `CF_ACCESS_CLIENT_ID`     | Cloudflare Access service token client ID used by configuration plan/apply                      |
+| `CF_ACCESS_CLIENT_SECRET` | Cloudflare Access service token client secret                                                   |
+| `WORKER_SECRET_VALUES`    | JSON object mapping every `credentialRef` in `runtime.json` to its secret value                 |
 
-Development:
+For example, an environment with two references stores this value in `WORKER_SECRET_VALUES`:
 
-```sh
-pnpm run bootstrap:admin -- \
-  --environment development \
-  --database DB \
-  --identity access:local-admin \
-  --display-name "Local Administrator" \
-  --organization-name "Example Organization"
+```json
+{
+  "GITHUB_CREDENTIAL": "<secret value>",
+  "GOOGLE_DIRECTORY_CREDENTIAL": "<secret value>"
+}
 ```
 
-Staging and production require an HTTPS `--issuer` value:
+The map must contain exactly the credential references in the selected runtime manifest. Values are written to a mode-`0600` temporary file and uploaded with the Worker version through Wrangler's secrets-file input. The temporary directory is removed after the command. Unlisted existing Worker secrets are preserved.
+
+If the runtime manifest has no credential references, `WORKER_SECRET_VALUES` may be absent.
+
+The Access service token must be allowed by the environment's Access policy and mapped in Access Control to an active service Subject with the role required to read and change runtime configuration. Keep staging and production credentials separate.
+
+## First deployment
+
+First publish the Worker, Worker secrets, and D1 migrations without attempting runtime configuration:
 
 ```sh
-pnpm run bootstrap:admin -- \
+pnpm deployment publish \
+  --directory /path/to/environment \
+  --expected-environment staging \
+  --source-repository example/access-control \
+  --source-commit "$(git rev-parse HEAD)"
+```
+
+Create the first administrator once the database is available:
+
+```sh
+pnpm bootstrap:admin -- \
   --environment staging \
-  --database DB \
+  --database access-control-staging \
   --identity access:your-access-subject \
   --issuer https://your-team.cloudflareaccess.com \
   --display-name "Administrator" \
   --organization-name "Example Organization"
 ```
+
+The command refuses to create a second active administrator.
+
+Create a runtime configuration plan with the environment's Access service token:
 
 ```sh
-pnpm run bootstrap:admin -- \
-  --environment production \
-  --database DB \
-  --identity access:your-access-subject \
-  --issuer https://your-team.cloudflareaccess.com \
-  --display-name "Administrator" \
-  --organization-name "Example Organization"
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+pnpm deployment plan \
+  --directory /path/to/environment \
+  --expected-environment staging
 ```
 
-The `--identity` value uses the canonical `access:<subject>` format. The issuer must match the issuer in the Cloudflare Access JWT used by the selected Worker.
+Review `changes` and `blockedChanges`. Apply only a fresh reviewed hash:
+
+```sh
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+pnpm deployment apply \
+  --directory /path/to/environment \
+  --expected-environment staging \
+  --plan-hash sha256:<64-lowercase-hex-characters>
+```
+
+Apply recomputes the plan, rejects a stale hash or blocked change, performs ordered changes, and verifies convergence.
+
+## Routine deployment
+
+`deploy` performs the publish path and then plans and applies runtime desired state:
+
+```sh
+CLOUDFLARE_ACCOUNT_ID=... \
+CLOUDFLARE_API_TOKEN=... \
+CF_ACCESS_CLIENT_ID=... \
+CF_ACCESS_CLIENT_SECRET=... \
+WORKER_SECRET_VALUES='{}' \
+pnpm deployment deploy \
+  --directory /path/to/environment \
+  --expected-environment staging \
+  --source-repository example/access-control \
+  --source-commit "$(git rev-parse HEAD)"
+```
+
+The command:
+
+1. validates all manifests and the release pin;
+2. reads current runtime state and rejects a blocked preflight plan;
+3. performs a Worker bundle dry-run;
+4. reads the remote `d1_migrations` table and stops if the database contains a migration absent from the pinned source release;
+5. publishes the generated Worker configuration and referenced secrets;
+6. applies pending D1 migrations by database name; and
+7. recomputes, applies, and verifies runtime desired state.
+
+D1 migration files are append-only operational state. Do not rename, edit, or remove an applied migration.
+
+## Private workflow contract
+
+A thin private workflow should:
+
+1. check out the deployment repository;
+2. read the chosen environment's `release.json`;
+3. check out that exact public repository and commit into a separate working directory;
+4. install the source repository's locked tools and dependencies;
+5. run `deployment validate` with the expected environment, repository, and checked-out commit;
+6. run the source repository checks and `deployment dry-run`;
+7. select the matching protected GitHub Environment; and
+8. run `deployment deploy` with only that environment's secrets.
+
+Use separate concurrency groups for staging and production, and disable cancellation once a state-changing deployment begins. Pull requests should run validation and dry-run only. Deployment should require `workflow_dispatch` or another explicit protected-environment approval.
+
+## Promotion and rollback
+
+Upgrade staging by changing only its release pin to a reviewed source commit. Validate and deploy staging, observe the application and scheduled/Queue behavior, then copy that known commit SHA to production and deploy production.
+
+Rollback by restoring the previous known-good release pin and deploying again. A software rollback never reverses D1 migrations. Before changing the Worker, the deployment command compares the remote migration records with the pinned source tree. If the database contains a migration unknown to the older release, rollback stops and requires an explicit forward-compatible remediation.

@@ -74,6 +74,8 @@ importers:
 
   packages/contracts: {}
 
+  packages/deployment: {}
+
   packages/domain: {}
 
   packages/events: {}

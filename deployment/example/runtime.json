@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "organization": {
+    "name": "Example Organization",
+    "title": "Access Control",
+    "maxPlanChanges": 20
+  },
+  "directorySources": [],
+  "applications": [],
+  "providerConnections": [],
+  "provisioningTargets": [],
+  "mappings": []
+}

@@ -13,7 +13,7 @@ export function executeD1Sql(target: D1CommandTarget, sql: string): unknown {
     'execute',
     target.database,
     '--config',
-    'apps/worker/wrangler.jsonc',
+    'apps/worker/wrangler.json',
     '--command',
     sql,
     '--json',
