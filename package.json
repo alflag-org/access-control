@@ -15,6 +15,7 @@
     "check": "pnpm run config -- validate --file config/example.json && pnpm run deployment:validate-example && pnpm run deployment:schemas:check && pnpm run types && tsc --noEmit && pnpm run lint && prettier --check . && pnpm run test",
     "db:migrate:local": "wrangler d1 migrations apply DB --config apps/worker/wrangler.json --local",
     "bootstrap:admin": "tsx scripts/bootstrap-admin.ts",
+    "bootstrap:service-principal": "tsx scripts/bootstrap-service-principal.ts",
     "config": "tsx scripts/config.ts",
     "deployment": "tsx scripts/deployment.ts",
     "deployment:schemas": "tsx scripts/generate-deployment-schemas.ts",

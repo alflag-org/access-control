@@ -135,6 +135,23 @@ pnpm bootstrap:admin -- \
 
 The command refuses to create a second active administrator.
 
+Create a Cloudflare Access service token, allow it in the environment's Access policy, and
+register its exact JWT `common_name` as a protected service Subject. An active human
+administrator must already exist:
+
+```sh
+pnpm bootstrap:service-principal -- \
+  --environment staging \
+  --database access-control-staging \
+  --issuer https://your-team.cloudflareaccess.com \
+  --common-name access-control-deployment-staging \
+  --role operator
+```
+
+The command rejects a missing administrator or duplicate Access identity and writes the Subject,
+identity, role grant, audit event, and outbox record as one guarded D1 operation. Use `operator`
+for configuration deployment and `auditor` for read-only automation.
+
 Create a runtime configuration plan with the environment's Access service token:
 
 ```sh
