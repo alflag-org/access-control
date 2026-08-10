@@ -109,6 +109,12 @@ The map must contain exactly the credential references in the selected runtime m
 
 If the runtime manifest has no credential references, `WORKER_SECRET_VALUES` may be absent.
 
+The variable name `CF_ACCESS_CLIENT_ID` is intentionally the same in both Environments. Enter the
+staging service-token client ID in the `staging` Environment and a different production client ID
+in the `production` Environment. The workflow selects the Environment before evaluating
+`${{ vars.CF_ACCESS_CLIENT_ID }}`, so no `_STAGING` or `_PRODUCTION` suffix and no workflow branch is
+needed.
+
 ### Cloudflare deployment API token
 
 For the current deployment contract, create an account-scoped API token with exactly these
