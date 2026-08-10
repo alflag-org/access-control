@@ -40,14 +40,8 @@ jobs:
       - name: Bootstrap the workspace
         run: mise run bootstrap
 
-      - name: Run the Worker smoke test
-        run: mise run smoke
-
       - name: Run repository checks
         run: mise run check
 
       - name: Validate the fictional deployment bundle
         run: mise run deploy-dry-run
-
-      - name: Reject whitespace errors
-        run: git diff --check

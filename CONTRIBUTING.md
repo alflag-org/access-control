@@ -48,7 +48,7 @@ mise run bootstrap
 | `pnpm deployment generate --directory <path> --output <file>` | Generates one temporary Wrangler configuration for inspection                                        |
 | `git diff --check`                                            | Checks changed files for whitespace errors                                                           |
 
-The CI workflow runs `mise run bootstrap`, `mise run smoke`, `mise run check`, `mise run deploy-dry-run`, and `git diff --check` for pull requests and pushes to `master`.
+The CI workflow runs `mise run bootstrap`, `mise run check`, and `mise run deploy-dry-run` for pull requests and pushes to `master`. It receives no deployment credentials.
 
 ## Change constraints
 
