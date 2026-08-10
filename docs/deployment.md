@@ -82,20 +82,19 @@ pnpm deployment generate \
   --output /tmp/access-control-wrangler.json
 ```
 
-## Deployment secrets
+## GitHub Environment inputs
 
-Store secrets in the matching protected GitHub Environment. An environment with pull request
-planning and deployment needs:
+Pull request validation does not select a GitHub Environment and receives no credentials. Manual
+deployment selects one protected Environment. Add these values to each Environment after creating
+its Cloudflare credentials; do not send them through an issue, pull request, chat, or Git commit.
 
-| GitHub Environment secret      | Use                                                                                             |
-| ------------------------------ | ----------------------------------------------------------------------------------------------- |
-| `CLOUDFLARE_ACCOUNT_ID`        | Cloudflare account containing the declared resources                                            |
-| `CLOUDFLARE_API_TOKEN`         | Least-privilege token for Worker, D1, R2, Queue, route, and secret changes used by the workflow |
-| `CF_ACCESS_PLAN_CLIENT_ID`     | Access service token client ID used only for pull request plans                                 |
-| `CF_ACCESS_PLAN_CLIENT_SECRET` | Access service token client secret used only for pull request plans                             |
-| `CF_ACCESS_CLIENT_ID`          | Access service token client ID used for deployment plan/apply                                   |
-| `CF_ACCESS_CLIENT_SECRET`      | Access service token client secret used for deployment plan/apply                               |
-| `WORKER_SECRET_VALUES`         | JSON object mapping every `credentialRef` in `runtime.json` to its secret value                 |
+| Storage  | Name                      | Required    | Use                                                                                      |
+| -------- | ------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| Variable | `CLOUDFLARE_ACCOUNT_ID`   | Yes         | Account containing the pre-created Worker, D1, R2, and Queue resources                   |
+| Variable | `CF_ACCESS_CLIENT_ID`     | Yes         | Public identifier of the environment's Access service token                              |
+| Secret   | `CLOUDFLARE_API_TOKEN`    | Yes         | Cloudflare management API credential used by Wrangler and D1 migration commands          |
+| Secret   | `CF_ACCESS_CLIENT_SECRET` | Yes         | Secret half of the environment's Access service token                                    |
+| Secret   | `WORKER_SECRET_VALUES`    | Conditional | Exact JSON map for the `credentialRef` names in `runtime.json`; omit when there are none |
 
 For example, an environment with two references stores this value in `WORKER_SECRET_VALUES`:
 
@@ -110,9 +109,54 @@ The map must contain exactly the credential references in the selected runtime m
 
 If the runtime manifest has no credential references, `WORKER_SECRET_VALUES` may be absent.
 
-Both Access service tokens must be allowed by the environment's Access policy. Register the plan
-identity as an active protected `auditor` service Subject and the deployment identity as an active
-protected `operator` service Subject. Keep both identities separate between staging and production.
+### Cloudflare deployment API token
+
+For the current deployment contract, create an account-scoped API token with exactly these
+permissions and restrict its resource scope to the target Cloudflare account:
+
+| Permission             | API operations used by the pinned deployment tooling                                                                                                    |
+| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Workers Scripts Edit` | Upload the Worker and its secret values; update its custom domain, `workers.dev` state, cron schedules, and Queue consumer; read the pre-created Queues |
+| `D1 Edit`              | Read `d1_migrations` and apply pending migrations through the D1 query API                                                                              |
+
+The relevant endpoint families are:
+
+```text
+PUT  /accounts/{account_id}/workers/scripts/{script_name}
+GET  /accounts/{account_id}/queues
+POST /accounts/{account_id}/queues/{queue_id}/consumers
+PUT  /accounts/{account_id}/queues/{queue_id}/consumers/{consumer_id}
+PUT  /accounts/{account_id}/workers/scripts/{script_name}/domains/records
+PUT  /accounts/{account_id}/workers/scripts/{script_name}/schedules
+POST /accounts/{account_id}/d1/database/{database_id}/query
+```
+
+Wrangler may also read or update script settings under the same Workers Scripts permission. The
+generated configuration binds existing D1, R2, and Queue resources, and the command passes
+`--experimental-auto-create=false`. Therefore the persistent deployment token does not need
+`Queues Edit`, `Workers R2 Storage Edit`, `Workers Routes Edit`, `Zone Read`, `DNS Edit`, Access
+management, Workers Builds management, or API token management permissions. Re-evaluate this list
+before changing the deployment tooling to create resources, use zone routes, or manage Access.
+
+Cloudflare defines an `Edit` permission as create, read, update, delete, and list access. These two
+permissions are account-scoped rather than restricted to one Worker or one D1 database. The token
+can therefore affect other Workers and D1 databases in the selected account even though this
+workflow does not call those APIs. Use a different token for each GitHub Environment, protect the
+Environment, and use a dedicated Cloudflare account when resource-level isolation is required.
+
+Resource creation, Access service token and policy setup, and Workers Builds connection changes
+are one-time operator tasks. Keep their broader permissions out of GitHub. When those tasks are
+performed through the Cloudflare API, service token creation needs `Access: Service Tokens Write`,
+Access application or policy changes need `Access: Apps and Policies Write`, and Workers Builds
+configuration changes need `Workers Builds Configuration Edit` plus `Workers Scripts Read`.
+
+### Deployment identity
+
+Create one Access service token per environment. Allow it in that environment's Access policy and
+register its exact JWT `common_name` as an active protected `operator` service Subject. The same
+identity reads the preflight plan and applies runtime desired state during the explicit deployment.
+Staging and production use different identities. Pull requests do not contact either live instance,
+so a second plan-only identity is not required.
 
 ## First deployment
 
@@ -140,18 +184,9 @@ pnpm bootstrap:admin -- \
 
 The command refuses to create a second active administrator.
 
-Create separate plan and deployment Cloudflare Access service tokens, allow both in the
-environment's Access policy, and register each exact JWT `common_name` as a protected service
-Subject. An active human administrator must already exist:
-
-```sh
-pnpm bootstrap:service-principal -- \
-  --environment staging \
-  --database access-control-staging \
-  --issuer https://your-team.cloudflareaccess.com \
-  --common-name access-control-plan-staging \
-  --role auditor
-```
+Create the environment's Cloudflare Access service token, allow it in the Access policy, and
+register its exact JWT `common_name` as a protected `operator` service Subject. An active human
+administrator must already exist:
 
 ```sh
 pnpm bootstrap:service-principal -- \
@@ -197,7 +232,6 @@ CLOUDFLARE_ACCOUNT_ID=... \
 CLOUDFLARE_API_TOKEN=... \
 CF_ACCESS_CLIENT_ID=... \
 CF_ACCESS_CLIENT_SECRET=... \
-WORKER_SECRET_VALUES='{}' \
 pnpm deployment deploy \
   --directory /path/to/environment \
   --expected-environment staging \
@@ -219,30 +253,26 @@ D1 migration files are append-only operational state. Do not rename, edit, or re
 
 ## Private workflow contract
 
-A thin private workflow has separate pull request and deployment paths.
+Keep the private workflows thin and separate by effect.
 
-The pull request path first runs without secrets. It checks out the proposed deployment state and
-its immutable source release, installs locked dependencies, runs the source checks, validates all
-three manifests, and runs `deployment dry-run`.
+The pull request workflow uses only `contents: read`. It checks out the proposed deployment state
+and each immutable source release, installs locked dependencies, runs the source checks, validates
+all three manifests, and runs `deployment dry-run`. It does not select a GitHub Environment, use
+`pull_request_target`, contact a live instance, or receive a secret.
 
-A second read-only job produces the runtime configuration plan with the plan identity. In GitHub
-Actions, run this job from the trusted base branch with `pull_request_target`. Do not check out or
-execute pull request code in that job. Use the base branch's workflow, `release.json`,
-`deployment.json`, and pinned source release; download the proposed `runtime.json` only as input
-data for the trusted `deployment plan` command. The job receives
-`CF_ACCESS_PLAN_CLIENT_ID` and `CF_ACCESS_PLAN_CLIENT_SECRET`, mapped to the CLI's
-`CF_ACCESS_CLIENT_ID` and `CF_ACCESS_CLIENT_SECRET`. It receives no Cloudflare deployment token,
-Worker secret value, or deployment identity.
-
-After merge, the deployment path should:
+After merge, the manual deployment workflow should:
 
 1. check out the merged deployment repository;
 2. read the chosen environment's `release.json`;
 3. check out that exact public repository and commit into a separate working directory;
 4. install the source repository's locked tools and dependencies;
-5. repeat the source checks, manifest validation, and `deployment dry-run`;
-6. select the matching protected GitHub Environment; and
-7. run `deployment deploy` with only that environment's deployment secrets.
+5. select the matching protected GitHub Environment; and
+6. run `deployment deploy` with only that Environment's variables and secrets.
+
+`deployment deploy` validates the manifests, produces a live preflight plan, performs its own
+Worker dry-run, checks migration compatibility, publishes, migrates D1, applies runtime desired
+state, and verifies convergence. Repeating those commands in the workflow adds no independent
+gate.
 
 Use separate concurrency groups for staging and production, and disable cancellation once a
 state-changing deployment begins. Deployment should require `workflow_dispatch` or another
