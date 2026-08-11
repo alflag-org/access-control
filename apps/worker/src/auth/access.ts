@@ -351,7 +351,7 @@ function parseHeader(value: Record<string, unknown>): AccessJwtHeader {
 }
 
 function parseClaims(value: Record<string, unknown>): AccessJwtClaims {
-  const aud = value.aud;
+  const aud = typeof value.aud === 'string' ? [value.aud] : value.aud;
   if (
     !Array.isArray(aud) ||
     !aud.every((item) => typeof item === 'string') ||

@@ -40,6 +40,44 @@ describe('Cloudflare Access signing key retrieval', () => {
     expect(fetcher).toHaveBeenCalledOnce();
   });
 
+  it('accepts an application token with a scalar audience claim', async () => {
+    const fixture = await signingKeyFixture(ACCESS_AUD);
+    const fetcher = vi.fn<typeof fetch>(async () => jsonResponse(fixture.jwks));
+    vi.stubGlobal('fetch', fetcher);
+
+    await expect(
+      authenticateAccessPrincipal(
+        new Request('https://access.example.org', {
+          headers: { 'Cf-Access-Jwt-Assertion': fixture.assertion },
+        }),
+        ACCESS_ENVIRONMENT,
+      ),
+    ).resolves.toMatchObject({ canonicalIdentity: 'access:access-subject' });
+    expect(fetcher).toHaveBeenCalledOnce();
+  });
+
+  it.each([42, [ACCESS_AUD, 42], null])(
+    'rejects a malformed audience claim: %j',
+    async (audience) => {
+      const fetcher = vi.fn<typeof fetch>();
+      vi.stubGlobal('fetch', fetcher);
+
+      await expect(
+        authenticateAccessPrincipal(
+          new Request('https://access.example.org', {
+            headers: { 'Cf-Access-Jwt-Assertion': unsignedAssertion({ aud: audience }) },
+          }),
+          ACCESS_ENVIRONMENT,
+        ),
+      ).rejects.toMatchObject({
+        status: 401,
+        code: 'access_required',
+        message: 'Cloudflare Access token is malformed.',
+      });
+      expect(fetcher).not.toHaveBeenCalled();
+    },
+  );
+
   it('retries the signing key request with cache revalidation after an upstream failure', async () => {
     const fixture = await signingKeyFixture();
     const warning = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
@@ -90,7 +128,7 @@ describe('Cloudflare Access signing key retrieval', () => {
   });
 });
 
-async function signingKeyFixture(): Promise<{
+async function signingKeyFixture(audience: string | string[] = [ACCESS_AUD]): Promise<{
   assertion: string;
   jwks: { keys: SigningKeyFixture[] };
 }> {
@@ -107,7 +145,7 @@ async function signingKeyFixture(): Promise<{
   const publicJwk = await crypto.subtle.exportKey('jwk', keyPair.publicKey);
   const header = { alg: 'RS256', kid: 'test-access-signing-key', typ: 'JWT' };
   const claims = {
-    aud: [ACCESS_AUD],
+    aud: audience,
     exp: Math.floor(Date.now() / 1000) + 300,
     iss: `https://${ACCESS_TEAM_DOMAIN}`,
     sub: 'access-subject',
@@ -134,6 +172,17 @@ async function signingKeyFixture(): Promise<{
       ],
     },
   };
+}
+
+function unsignedAssertion(claims: Record<string, unknown>): string {
+  const header = { alg: 'RS256', kid: 'test-access-signing-key', typ: 'JWT' };
+  const payload = {
+    exp: Math.floor(Date.now() / 1000) + 300,
+    iss: `https://${ACCESS_TEAM_DOMAIN}`,
+    sub: 'access-subject',
+    ...claims,
+  };
+  return `${encodeBase64Url(JSON.stringify(header))}.${encodeBase64Url(JSON.stringify(payload))}.signature`;
 }
 
 function jsonResponse(value: unknown): Response {
