@@ -245,6 +245,26 @@ const subjectStatusSchema = z
   })
   .strict();
 
+export const updateSubjectProfileSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(160),
+    primaryEmail: z.email().nullable().optional(),
+    expectedRevision: z.int().positive(),
+  })
+  .strict();
+
+export const updateManagedGuestProfileSchema = z
+  .object({
+    displayName: z.string().trim().min(1).max(160).optional(),
+    primaryEmail: z.email().nullable().optional(),
+    externalContactEmail: z.email(),
+    externalOrganization: z.string().trim().min(1).max(160),
+    purpose: z.string().trim().min(1).max(500),
+    expectedSubjectRevision: z.int().positive(),
+    expectedGuestRevision: z.int().positive(),
+  })
+  .strict();
+
 const bindExternalIdentitySchema = z.discriminatedUnion('provider', [
   z
     .object({
@@ -505,6 +525,19 @@ export const apiRoutes = {
     responseSchema: dataSchema(subjectSchema),
     mutation: true,
   }),
+  updateSubjectProfile: apiRoute({
+    method: 'patch',
+    path: '/api/v1/subjects/{subjectId}/profile',
+    operationId: 'updateSubjectProfile',
+    summary: 'Update Subject profile',
+    description:
+      'Changes a locally managed Subject display name and optional primary email with an expected revision.',
+    tags: ['Subjects'],
+    roles: ADMIN_ONLY,
+    request: pathAndBodyRequest('subjectId', updateSubjectProfileSchema),
+    responseSchema: dataSchema(subjectSchema),
+    mutation: true,
+  }),
   subjectIdentities: apiRoute({
     method: 'get',
     path: '/api/v1/subjects/{subjectId}/identities',
@@ -609,6 +642,19 @@ export const apiRoutes = {
     tags: ['Guests'],
     roles: ADMIN_ONLY,
     request: pathAndBodyRequest('subjectId', suspendGuestSchema),
+    responseSchema: dataSchema(guestBundleSchema),
+    mutation: true,
+  }),
+  updateGuestProfile: apiRoute({
+    method: 'patch',
+    path: '/api/v1/guests/{subjectId}/profile',
+    operationId: 'updateManagedGuestProfile',
+    summary: 'Update managed guest profile',
+    description:
+      'Changes locally managed guest profile and contact fields atomically with two expected revisions.',
+    tags: ['Guests'],
+    roles: ADMIN_ONLY,
+    request: pathAndBodyRequest('subjectId', updateManagedGuestProfileSchema),
     responseSchema: dataSchema(guestBundleSchema),
     mutation: true,
   }),

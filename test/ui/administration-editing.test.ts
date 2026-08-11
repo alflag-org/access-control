@@ -65,6 +65,33 @@ describe('Administration editing surfaces', () => {
     expect(readOnly).toContain('運用担当');
   });
 
+  it('offers local profile editing and explains directory-owned profiles', () => {
+    const localSubject = memberSubject({
+      id: 'subject:local-profile',
+      displayName: 'Local Profile',
+      directoryState: 'pending',
+      primaryEmail: 'local@example.org',
+    });
+    const localHtml = renderPeopleAdmin({
+      subjects: [localSubject],
+      roleGrants: [],
+      capabilities: administrator,
+    });
+    expect(localHtml).toContain('action="/api/v1/subjects/subject:local-profile/profile"');
+    expect(localHtml).toContain('name="displayName" required type="text" value="Local Profile"');
+    expect(localHtml).toContain('name="primaryEmail"');
+    expect(localHtml).toContain('Access Control');
+
+    const directoryHtml = renderPeopleAdmin({
+      subjects: [memberSubject()],
+      roleGrants: [],
+      capabilities: administrator,
+    });
+    expect(directoryHtml).toContain('Google Directory');
+    expect(directoryHtml).toContain('Google Workspace 側で変更してから同期してください。');
+    expect(directoryHtml).not.toContain('/profile"');
+  });
+
   it('renders create and update forms for applications and their entitlements', () => {
     const editable = renderApplicationsAdmin({
       applications: [application({ name: '<Source Control>' })],
@@ -105,6 +132,31 @@ describe('Administration editing surfaces', () => {
     expect(html).toContain('data-identity-provider');
     expect(html).toContain('name="expectedSubjectRevision" value="1"');
     expect(html).toContain('プロバイダー内の変更できない ID');
+  });
+
+  it('renders a profile and contact form for a locally managed guest', () => {
+    const guestSubject = memberSubject({
+      id: 'subject:local-guest',
+      classification: 'managed_guest',
+      directoryState: 'pending',
+      status: 'active',
+      primaryEmail: 'guest@example.org',
+    });
+    const html = renderGuestsAdmin({
+      guests: [activeGuest({ subjectId: guestSubject.id })],
+      identities: [],
+      subjects: [guestSubject],
+      capabilities: administrator,
+    });
+
+    expect(html).toContain('action="/api/v1/guests/subject:local-guest/profile"');
+    expect(html).toContain(
+      'name="externalContactEmail" required type="email" value="ada.external@example.net"',
+    );
+    expect(html).toContain(
+      'name="externalOrganization" required type="text" value="Example Partner"',
+    );
+    expect(html).toContain('name="purpose"');
   });
 
   it('requires a fresh mapping preview before rendering an activation request', () => {

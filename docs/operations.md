@@ -30,6 +30,12 @@ Use the API operation `POST /api/v1/sync-runs/google-directory` with a Directory
 
 The scheduled handler does not run directory synchronization. It processes expired managed guests and dispatches pending outbox records every six hours.
 
+## Subject and guest profiles
+
+Administrators can edit locally managed Subject display names and optional primary email addresses from `/admin/people`. The API operation is `PATCH /api/v1/subjects/{subjectId}/profile`; it requires the current Subject revision. Google Directory-managed human Subjects are read-only in Access Control and must be changed in Google Workspace before the next synchronization. Authentication IDs remain immutable and are not changed by profile editing.
+
+Managed guest display names, primary email addresses, external contact email, organization, and purpose are edited together from `/admin/guests` through `PATCH /api/v1/guests/{subjectId}/profile`. The Subject and guest revisions are checked and persisted atomically. Expired or retired guests cannot be edited. Profile mutations are administrator-only and create audit and outbox records without copying email values into the audit payload.
+
 ## Provider reconciliation
 
 The provisioning API separates observation, plan creation, operation creation, execution, and verification. The normal sequence is:

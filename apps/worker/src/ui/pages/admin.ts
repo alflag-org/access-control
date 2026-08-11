@@ -18,6 +18,7 @@ import type {
   SourceGroup,
   Subject,
 } from '@access-control/domain';
+import { isDirectoryManagedSubject } from '@access-control/domain';
 import {
   renderCheckbox,
   renderHiddenField,
@@ -85,6 +86,10 @@ export function renderGuestsAdmin(input: {
       input.capabilities.canManageIdentities &&
       subject !== undefined &&
       !['suspended', 'expired', 'retired'].includes(guest.status);
+    const profileManagement =
+      input.capabilities.canManageIdentities && subject !== undefined
+        ? renderGuestProfileForm(subject, guest, index)
+        : '';
     const suspension = canSuspend
       ? `<section class="editor-section"><h3>ゲストを停止</h3><p class="editor-help">停止すると、このゲストの利用状態とゲスト記録を同時に停止します。</p>${renderJsonForm(
           {
@@ -112,7 +117,7 @@ export function renderGuestsAdmin(input: {
       ],
       status: guest.status,
       actionLabel: canSuspend ? '管理' : '詳細',
-      body: `<dl class="record-details"><dt>外部連絡先</dt><dd>${escapeHtml(guest.externalContactEmail)}</dd><dt>利用目的</dt><dd>${escapeHtml(guest.purpose)}</dd><dt>利用開始</dt><dd>${escapeHtml(formatDate(guest.validFrom))}</dd><dt>有効期限</dt><dd>${escapeHtml(formatDate(guest.expiresAt))}</dd><dt>次回レビュー</dt><dd>${guest.nextReviewAt === undefined ? '未設定' : escapeHtml(formatDate(guest.nextReviewAt))}</dd><dt>リビジョン</dt><dd>${guest.revision}</dd></dl>${identityManagement}${suspension}`,
+      body: `<dl class="record-details"><dt>外部連絡先</dt><dd>${escapeHtml(guest.externalContactEmail)}</dd><dt>利用目的</dt><dd>${escapeHtml(guest.purpose)}</dd><dt>利用開始</dt><dd>${escapeHtml(formatDate(guest.validFrom))}</dd><dt>有効期限</dt><dd>${escapeHtml(formatDate(guest.expiresAt))}</dd><dt>次回レビュー</dt><dd>${guest.nextReviewAt === undefined ? '未設定' : escapeHtml(formatDate(guest.nextReviewAt))}</dd><dt>リビジョン</dt><dd>${guest.revision}</dd></dl>${profileManagement}${identityManagement}${suspension}`,
     });
   });
   return `${createForm}<section class="section"><div class="section-header"><h2>登録済みゲスト</h2><span class="count">${input.guests.length}</span></div>${renderRecordList('登録済みゲスト', records, 'ゲストは登録されていません。')}</section>`;
@@ -408,9 +413,12 @@ function renderSubjectSection(
   const records = subjects.map((subject, index) => {
     const grants = roleGrants.filter((grant) => grant.subjectId === subject.id);
     const activeGrants = grants.filter((grant) => grant.active);
-    const body = `<dl class="record-details"><dt>種別</dt><dd>${escapeHtml(formatDomainValue(subject.classification))}</dd><dt>ディレクトリ同期</dt><dd>${renderStatus(subject.directoryState)}</dd><dt>保護対象</dt><dd>${renderStatus(subject.protected ? 'yes' : 'no')}</dd><dt>管理ロール</dt><dd>${activeGrants.length === 0 ? 'なし' : activeGrants.map((grant) => `<span class="tag">${escapeHtml(formatDomainValue(grant.role))}</span>`).join(' ')}</dd><dt>リビジョン</dt><dd>${subject.revision}</dd></dl>${
-      capabilities.canManageIdentities ? renderSubjectActions(subject, grants, index) : ''
-    }`;
+    const profileAuthority = isDirectoryManagedSubject(subject)
+      ? 'Google Directory'
+      : 'Access Control';
+    const body = `<dl class="record-details"><dt>種別</dt><dd>${escapeHtml(formatDomainValue(subject.classification))}</dd><dt>プロフィール管理元</dt><dd>${escapeHtml(profileAuthority)}</dd><dt>ディレクトリ同期</dt><dd>${renderStatus(subject.directoryState)}</dd><dt>保護対象</dt><dd>${renderStatus(subject.protected ? 'yes' : 'no')}</dd><dt>管理ロール</dt><dd>${activeGrants.length === 0 ? 'なし' : activeGrants.map((grant) => `<span class="tag">${escapeHtml(formatDomainValue(grant.role))}</span>`).join(' ')}</dd><dt>リビジョン</dt><dd>${subject.revision}</dd></dl>${
+      capabilities.canManageIdentities ? renderSubjectProfileForm(subject, index) : ''
+    }${capabilities.canManageIdentities ? renderSubjectActions(subject, grants, index) : ''}`;
     return renderRecord({
       title: subject.displayName,
       identifier: subject.id,
@@ -424,6 +432,37 @@ function renderSubjectSection(
     });
   });
   return `<section class="section${title === 'ユーザー' ? ' section-first' : ''}"><div class="section-header"><h2>${escapeHtml(title)}</h2><span class="count">${subjects.length}</span></div>${renderRecordList(title, records, `${title}は登録されていません。`)}</section>`;
+}
+
+function renderSubjectProfileForm(subject: Subject, index: number): string {
+  if (subject.status === 'retired') {
+    return `<section class="editor-section"><h3>基本情報</h3>${readOnlyNotice('廃止済みの Subject は履歴として保持されるため、基本情報を変更できません。')}</section>`;
+  }
+  if (isDirectoryManagedSubject(subject)) {
+    return `<section class="editor-section"><h3>基本情報</h3>${readOnlyNotice('表示名とメールアドレスは Google Directory から同期されます。Google Workspace 側で変更してから同期してください。')}</section>`;
+  }
+  return `<section class="editor-section"><h3>基本情報</h3>${renderJsonForm({
+    action: `/api/v1/subjects/${escapeHtml(subject.id)}/profile`,
+    method: 'patch',
+    submitLabel: '基本情報を保存',
+    body: `${renderHiddenField({ name: 'expectedRevision', value: subject.revision, valueType: 'number' })}<div class="form-grid">${renderTextField({ id: `subject-profile-name-${index}`, name: 'displayName', label: '表示名', value: subject.displayName, required: true, autocomplete: 'name' })}${subject.kind === 'human' ? renderTextField({ id: `subject-profile-email-${index}`, name: 'primaryEmail', label: '主メールアドレス（任意）', value: subject.primaryEmail, type: 'email', nullable: true, autocomplete: 'email', hint: '認証 ID ではありません。' }) : ''}</div>`,
+  })}</section>`;
+}
+
+function renderGuestProfileForm(subject: Subject, guest: GuestProfile, index: number): string {
+  if (subject.status === 'retired' || ['expired', 'retired'].includes(guest.status)) {
+    return `<section class="editor-section"><h3>基本情報と連絡先</h3>${readOnlyNotice('期限切れまたは廃止済みのゲストは、履歴として保持されるため編集できません。')}</section>`;
+  }
+  const directoryManaged = isDirectoryManagedSubject(subject);
+  const subjectFields = directoryManaged
+    ? '<p class="editor-help">表示名と主メールアドレスは Google Directory から同期されます。</p>'
+    : `${renderTextField({ id: `guest-profile-name-${index}`, name: 'displayName', label: '表示名', value: subject.displayName, required: true, autocomplete: 'name' })}${renderTextField({ id: `guest-profile-email-${index}`, name: 'primaryEmail', label: '主メールアドレス（任意）', value: subject.primaryEmail, type: 'email', nullable: true, autocomplete: 'email', hint: '認証 ID ではありません。' })}`;
+  return `<section class="editor-section"><h3>基本情報と連絡先</h3>${renderJsonForm({
+    action: `/api/v1/guests/${escapeHtml(subject.id)}/profile`,
+    method: 'patch',
+    submitLabel: 'ゲスト情報を保存',
+    body: `${renderHiddenField({ name: 'expectedSubjectRevision', value: subject.revision, valueType: 'number' })}${renderHiddenField({ name: 'expectedGuestRevision', value: guest.revision, valueType: 'number' })}<div class="form-grid">${subjectFields}${renderTextField({ id: `guest-profile-contact-${index}`, name: 'externalContactEmail', label: '外部連絡先メール', value: guest.externalContactEmail, type: 'email', required: true, autocomplete: 'email' })}${renderTextField({ id: `guest-profile-organization-${index}`, name: 'externalOrganization', label: '所属組織', value: guest.externalOrganization, required: true })}${renderTextArea({ id: `guest-profile-purpose-${index}`, name: 'purpose', label: '利用目的', value: guest.purpose, required: true, wide: true, rows: 3 })}</div>`,
+  })}</section>`;
 }
 
 function renderSubjectActions(

@@ -38,7 +38,9 @@ import {
   updateEntitlementSchema,
   updateOrganizationSettingsSchema,
   updateApplicationSchema,
+  updateManagedGuestProfileSchema,
   updateProviderConnectionSchema,
+  updateSubjectProfileSchema,
   updateProvisioningTargetSchema,
   type ApiRouteContract,
 } from './route-contracts';
@@ -158,6 +160,16 @@ export function registerApiRoutes(app: OpenAPIHono<WorkerEnvironment>): void {
       actorContext(context, actor.id),
     );
     return respond(context, apiRoutes.updateSubject, { data: subject });
+  });
+
+  app.openapi(apiRoutes.updateSubjectProfile.definition, async (context) => {
+    const actor = authorize(context, apiRoutes.updateSubjectProfile);
+    const body = await validJson(context, updateSubjectProfileSchema);
+    const subject = await new IdentityService(
+      context.get('repositories').identities,
+      workerServiceRuntime,
+    ).updateSubjectProfile(routeParam(context, 'subjectId'), body, actorContext(context, actor.id));
+    return respond(context, apiRoutes.updateSubjectProfile, { data: subject });
   });
 
   app.openapi(apiRoutes.subjectIdentities.definition, async (context) => {
@@ -284,6 +296,20 @@ export function registerApiRoutes(app: OpenAPIHono<WorkerEnvironment>): void {
       workerServiceRuntime,
     ).suspendManagedGuest(routeParam(context, 'subjectId'), body, actorContext(context, actor.id));
     return respond(context, apiRoutes.suspendGuest, { data: result });
+  });
+
+  app.openapi(apiRoutes.updateGuestProfile.definition, async (context) => {
+    const actor = authorize(context, apiRoutes.updateGuestProfile);
+    const body = await validJson(context, updateManagedGuestProfileSchema);
+    const result = await new IdentityService(
+      context.get('repositories').identities,
+      workerServiceRuntime,
+    ).updateManagedGuestProfile(
+      routeParam(context, 'subjectId'),
+      body,
+      actorContext(context, actor.id),
+    );
+    return respond(context, apiRoutes.updateGuestProfile, { data: result });
   });
 
   app.openapi(apiRoutes.organizationSettings.definition, async (context) => {

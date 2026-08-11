@@ -80,6 +80,12 @@ export const subjectSchema = z
     }
   });
 
+export function isDirectoryManagedSubject(
+  subject: Pick<Subject, 'kind' | 'directoryState'>,
+): boolean {
+  return subject.kind === 'human' && subject.directoryState !== 'pending';
+}
+
 export const externalIdentitySchema = z
   .object({
     id: idSchema,

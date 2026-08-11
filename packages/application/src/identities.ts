@@ -6,6 +6,7 @@ import {
   createGuestProfileCandidate,
   createPlatformRoleGrantCandidate,
   createSubjectCandidate,
+  isDirectoryManagedSubject,
   type GuestProfile,
   type ExternalIdentity,
   type PlatformRole,
@@ -27,6 +28,22 @@ export interface CreateManagedGuestInput {
   validFrom: string;
   expiresAt: string;
   nextReviewAt?: string;
+}
+
+export interface UpdateSubjectProfileInput {
+  displayName: string;
+  primaryEmail?: string | null | undefined;
+  expectedRevision: number;
+}
+
+export interface UpdateManagedGuestProfileInput {
+  displayName?: string | undefined;
+  primaryEmail?: string | null | undefined;
+  externalContactEmail: string;
+  externalOrganization: string;
+  purpose: string;
+  expectedSubjectRevision: number;
+  expectedGuestRevision: number;
 }
 
 export interface BindExternalIdentityInput {
@@ -116,6 +133,109 @@ export class IdentityService {
         },
       }),
     });
+    return { subject, guestProfile };
+  }
+
+  public async updateSubjectProfile(
+    subjectId: string,
+    input: UpdateSubjectProfileInput,
+    context: RequiredActorContext,
+  ): Promise<Subject> {
+    const current = await this.requireSubject(subjectId);
+    assertSubjectProfileEditable(current);
+    if (current.revision !== input.expectedRevision) {
+      throw new RevisionConflictError(input.expectedRevision, current.revision);
+    }
+    const subject = updateSubjectProfile(
+      current,
+      input,
+      context.actorSubjectId,
+      this.runtime.now(),
+    );
+    await this.repository.updateSubject(
+      subject,
+      createMutationRecords(this.runtime, context, {
+        eventType: 'access-control.subject.profile.updated',
+        topic: 'access-control.subject.profile.updated',
+        targetType: 'subject',
+        targetId: subject.id,
+        action: 'update_profile',
+        previousRevision: current.revision,
+        resultingRevision: subject.revision,
+        payload: { changedFields: subjectProfileChangedFields(current, subject) },
+      }),
+      input.expectedRevision,
+    );
+    return subject;
+  }
+
+  public async updateManagedGuestProfile(
+    subjectId: string,
+    input: UpdateManagedGuestProfileInput,
+    context: RequiredActorContext,
+  ): Promise<{ subject: Subject; guestProfile: GuestProfile }> {
+    const [currentSubject, currentGuest] = await Promise.all([
+      this.requireSubject(subjectId),
+      this.repository.getGuestProfile(subjectId),
+    ]);
+    if (currentGuest === null) throw new NotFoundError('Guest profile', subjectId);
+    if (
+      currentSubject.status === 'retired' ||
+      currentGuest.status === 'expired' ||
+      currentGuest.status === 'retired'
+    ) {
+      throw new AccessControlError(
+        409,
+        'guest_profile_not_editable',
+        'An expired or retired managed guest profile cannot be edited.',
+      );
+    }
+    if (currentSubject.revision !== input.expectedSubjectRevision) {
+      throw new RevisionConflictError(input.expectedSubjectRevision, currentSubject.revision);
+    }
+    if (currentGuest.revision !== input.expectedGuestRevision) {
+      throw new RevisionConflictError(input.expectedGuestRevision, currentGuest.revision);
+    }
+    const now = this.runtime.now();
+    const subject = updateSubjectProfile(currentSubject, input, context.actorSubjectId, now);
+    if (
+      isDirectoryManagedSubject(currentSubject) &&
+      subjectProfileChangedFields(currentSubject, subject).length > 0
+    ) {
+      throw new AccessControlError(
+        409,
+        'directory_managed_profile',
+        'A Google Directory managed profile must be changed in Google Directory.',
+      );
+    }
+    const guestProfile = createGuestProfileCandidate({
+      ...currentGuest,
+      externalContactEmail: input.externalContactEmail,
+      externalOrganization: input.externalOrganization,
+      purpose: input.purpose,
+      revision: currentGuest.revision + 1,
+      updatedAt: now,
+      updatedBy: context.actorSubjectId,
+    });
+    await this.repository.updateManagedGuest(
+      subject,
+      guestProfile,
+      createMutationRecords(this.runtime, context, {
+        eventType: 'access-control.guest.profile.updated',
+        topic: 'access-control.guest.profile.updated',
+        targetType: 'guest_profile',
+        targetId: subjectId,
+        action: 'update_profile',
+        previousRevision: currentGuest.revision,
+        resultingRevision: guestProfile.revision,
+        payload: {
+          subjectChangedFields: subjectProfileChangedFields(currentSubject, subject),
+          guestChangedFields: guestProfileChangedFields(currentGuest, guestProfile),
+        },
+      }),
+      input.expectedSubjectRevision,
+      input.expectedGuestRevision,
+    );
     return { subject, guestProfile };
   }
 
@@ -466,6 +586,65 @@ export class IdentityService {
     if (subject === null) throw new NotFoundError('Subject', id);
     return subject;
   }
+}
+
+function assertSubjectProfileEditable(subject: Subject): void {
+  if (subject.status === 'retired') {
+    throw new AccessControlError(
+      409,
+      'retired_subject_profile',
+      'A retired Subject profile cannot be edited.',
+    );
+  }
+  if (isDirectoryManagedSubject(subject)) {
+    throw new AccessControlError(
+      409,
+      'directory_managed_profile',
+      'A Google Directory managed profile must be changed in Google Directory.',
+    );
+  }
+}
+
+function updateSubjectProfile(
+  current: Subject,
+  input: { displayName?: string | undefined; primaryEmail?: string | null | undefined },
+  actorSubjectId: string,
+  now: string,
+): Subject {
+  const { primaryEmail: currentPrimaryEmail, ...currentWithoutPrimaryEmail } = current;
+  const primaryEmail =
+    input.primaryEmail === undefined
+      ? currentPrimaryEmail
+      : input.primaryEmail === null
+        ? undefined
+        : input.primaryEmail;
+  return createSubjectCandidate({
+    ...currentWithoutPrimaryEmail,
+    ...(primaryEmail === undefined ? {} : { primaryEmail }),
+    ...(input.displayName === undefined ? {} : { displayName: input.displayName }),
+    revision: current.revision + 1,
+    updatedAt: now,
+    updatedBy: actorSubjectId,
+  });
+}
+
+function subjectProfileChangedFields(current: Subject, next: Subject): string[] {
+  const changedFields: string[] = [];
+  if (current.displayName !== next.displayName) changedFields.push('displayName');
+  if (current.primaryEmail !== next.primaryEmail) changedFields.push('primaryEmail');
+  return changedFields;
+}
+
+function guestProfileChangedFields(current: GuestProfile, next: GuestProfile): string[] {
+  const changedFields: string[] = [];
+  if (current.externalContactEmail !== next.externalContactEmail) {
+    changedFields.push('externalContactEmail');
+  }
+  if (current.externalOrganization !== next.externalOrganization) {
+    changedFields.push('externalOrganization');
+  }
+  if (current.purpose !== next.purpose) changedFields.push('purpose');
+  return changedFields;
 }
 
 function assertImmutableIdentityKey(input: BindExternalIdentityInput): void {
