@@ -82,19 +82,20 @@ pnpm deployment generate \
   --output /tmp/access-control-wrangler.json
 ```
 
-## GitHub Environment inputs
+## GitHub Actions inputs
 
 Pull request validation does not select a GitHub Environment and receives no credentials. Manual
-deployment selects one protected Environment. Add these values to each Environment after creating
-its Cloudflare credentials; do not send them through an issue, pull request, chat, or Git commit.
+deployment selects one protected Environment. Keep shared non-secret values at repository scope
+and environment-specific identities in the matching Environment. Do not send credentials through
+an issue, pull request, chat, or Git commit.
 
-| Storage  | Name                      | Required    | Use                                                                                      |
-| -------- | ------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
-| Variable | `CLOUDFLARE_ACCOUNT_ID`   | Yes         | Account containing the pre-created Worker, D1, R2, and Queue resources                   |
-| Variable | `CF_ACCESS_CLIENT_ID`     | Yes         | Public identifier of the environment's Access service token                              |
-| Secret   | `CLOUDFLARE_API_TOKEN`    | Yes         | Cloudflare management API credential used by Wrangler and D1 migration commands          |
-| Secret   | `CF_ACCESS_CLIENT_SECRET` | Yes         | Secret half of the environment's Access service token                                    |
-| Secret   | `WORKER_SECRET_VALUES`    | Conditional | Exact JSON map for the `credentialRef` names in `runtime.json`; omit when there are none |
+| Storage              | Name                      | Required    | Use                                                                                      |
+| -------------------- | ------------------------- | ----------- | ---------------------------------------------------------------------------------------- |
+| Repository variable  | `CLOUDFLARE_ACCOUNT_ID`   | Yes         | Shared account containing the pre-created Worker, D1, R2, and Queue resources            |
+| Environment variable | `CF_ACCESS_CLIENT_ID`     | Yes         | Public identifier of the environment's Access service token                              |
+| Environment secret   | `CLOUDFLARE_API_TOKEN`    | Yes         | Cloudflare management API credential used by Wrangler and D1 migration commands          |
+| Environment secret   | `CF_ACCESS_CLIENT_SECRET` | Yes         | Secret half of the environment's Access service token                                    |
+| Environment secret   | `WORKER_SECRET_VALUES`    | Conditional | Exact JSON map for the `credentialRef` names in `runtime.json`; omit when there are none |
 
 For example, an environment with two references stores this value in `WORKER_SECRET_VALUES`:
 
@@ -117,13 +118,15 @@ needed.
 
 ### Cloudflare deployment API token
 
-For the current deployment contract, create an account-scoped API token with exactly these
-permissions and restrict its resource scope to the target Cloudflare account:
+For the current deployment contract, create an API token with exactly these permissions. Restrict
+the account permissions to the target account and the zone permission to the declared custom-domain
+zone:
 
-| Permission             | API operations used by the pinned deployment tooling                                                                                                    |
-| ---------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `Workers Scripts Edit` | Upload the Worker and its secret values; update its custom domain, `workers.dev` state, cron schedules, and Queue consumer; read the pre-created Queues |
-| `D1 Edit`              | Read `d1_migrations` and apply pending migrations through the D1 query API                                                                              |
+| Permission             | Scope   | API operations used by the pinned deployment tooling                                                                                                    |
+| ---------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Workers Scripts Edit` | Account | Upload the Worker and its secret values; update its custom domain, `workers.dev` state, cron schedules, and Queue consumer; read the pre-created Queues |
+| `D1 Edit`              | Account | Read `d1_migrations` and apply pending migrations through the D1 query API                                                                              |
+| `Workers Routes Edit`  | Zone    | Read and reconcile existing zone routes after Worker upload                                                                                             |
 
 The relevant endpoint families are:
 
@@ -135,20 +138,22 @@ PUT  /accounts/{account_id}/queues/{queue_id}/consumers/{consumer_id}
 PUT  /accounts/{account_id}/workers/scripts/{script_name}/domains/records
 PUT  /accounts/{account_id}/workers/scripts/{script_name}/schedules
 POST /accounts/{account_id}/d1/database/{database_id}/query
+GET, POST, PUT, DELETE /zones/{zone_id}/workers/routes[/{route_id}]
 ```
 
 Wrangler may also read or update script settings under the same Workers Scripts permission. The
 generated configuration binds existing D1, R2, and Queue resources, and the command passes
 `--experimental-auto-create=false`. Therefore the persistent deployment token does not need
-`Queues Edit`, `Workers R2 Storage Edit`, `Workers Routes Edit`, `Zone Read`, `DNS Edit`, Access
-management, Workers Builds management, or API token management permissions. Re-evaluate this list
-before changing the deployment tooling to create resources, use zone routes, or manage Access.
+`Queues Edit`, `Workers R2 Storage Edit`, `Zone Read`, `DNS Edit`, Access management, Workers Builds
+management, or API token management permissions. Re-evaluate this list before changing the
+deployment tooling to create resources or manage Access.
 
-Cloudflare defines an `Edit` permission as create, read, update, delete, and list access. These two
-permissions are account-scoped rather than restricted to one Worker or one D1 database. The token
-can therefore affect other Workers and D1 databases in the selected account even though this
-workflow does not call those APIs. Use a different token for each GitHub Environment, protect the
-Environment, and use a dedicated Cloudflare account when resource-level isolation is required.
+Cloudflare defines an `Edit` permission as create, read, update, delete, and list access. `Workers
+Scripts Edit` and `D1 Edit` are account-scoped rather than restricted to one Worker or one D1
+database; `Workers Routes Edit` is restricted to the declared zone. The token can therefore affect
+other Workers and D1 databases in the selected account even though this workflow does not call
+those APIs. Use a different token for each GitHub Environment, protect the Environment, and use a
+dedicated Cloudflare account when resource-level isolation is required.
 
 Resource creation, Access service token and policy setup, and Workers Builds connection changes
 are one-time operator tasks. Keep their broader permissions out of GitHub. When those tasks are
@@ -273,7 +278,7 @@ After merge, the manual deployment workflow should:
 3. check out that exact public repository and commit into a separate working directory;
 4. install the source repository's locked tools and dependencies;
 5. select the matching protected GitHub Environment; and
-6. run `deployment deploy` with only that Environment's variables and secrets.
+6. run `deployment deploy` with the repository variable and only that Environment's identity.
 
 `deployment deploy` validates the manifests, produces a live preflight plan, performs its own
 Worker dry-run, checks migration compatibility, publishes, migrates D1, applies runtime desired
