@@ -26,6 +26,7 @@ import {
   renderPeopleAdmin,
   renderProvisioningAdmin,
   renderSettingsAdmin,
+  type AdministrationCapabilities,
 } from './pages/admin';
 
 export interface RenderUiInput {
@@ -56,6 +57,7 @@ async function pageContent(
   settings: OrganizationSettings,
 ): Promise<{ title: string; description: string; content: string } | null> {
   const repositories = input.repositories;
+  const capabilities = administrationCapabilities(input.roles);
   switch (input.pathname) {
     case '/applications':
       return page(
@@ -100,41 +102,71 @@ async function pageContent(
         }),
       );
     }
-    case '/admin/people':
+    case '/admin/people': {
+      const [subjects, roleGrants] = await Promise.all([
+        repositories.identities.listSubjects(),
+        repositories.identities.listPlatformRoleGrants(),
+      ]);
       return page(
         'ユーザーとサービス',
-        '登録済みのユーザー、サービスアカウント、自動処理の利用状態を確認します。',
-        renderPeopleAdmin(await repositories.identities.listSubjects()),
+        '登録済みのユーザー、サービスアカウント、自動処理の利用状態と管理ロールを確認します。',
+        renderPeopleAdmin({ subjects, roleGrants, capabilities }),
       );
-    case '/admin/guests':
+    }
+    case '/admin/guests': {
+      const [guests, identities, subjects] = await Promise.all([
+        repositories.identities.listGuestProfiles(),
+        repositories.identities.listExternalIdentities(),
+        repositories.identities.listSubjects(),
+      ]);
       return page(
         'ゲスト',
-        'ゲストのスポンサー、有効期限、レビュー状況を確認します。',
-        renderGuestsAdmin(await repositories.identities.listGuestProfiles()),
+        'ゲストのスポンサー、有効期限、レビュー状況を管理します。',
+        renderGuestsAdmin({ guests, identities, subjects, capabilities }),
       );
-    case '/admin/applications':
+    }
+    case '/admin/applications': {
+      const [applications, entitlements] = await Promise.all([
+        repositories.catalog.listApplications(),
+        repositories.catalog.listApplicationEntitlements(),
+      ]);
       return page(
         'アプリケーション',
-        'ポータルに表示するアプリケーションを登録し、現在の設定を確認します。',
-        renderApplicationsAdmin(await repositories.catalog.listApplications()),
+        'ポータルに表示するアプリケーションと権限を管理します。',
+        renderApplicationsAdmin({ applications, entitlements, capabilities }),
       );
+    }
     case '/admin/groups': {
-      const [groups, runs] = await Promise.all([
+      const [groups, runs, directorySources] = await Promise.all([
         repositories.catalog.listSourceGroups(),
         repositories.directory.listDirectorySyncRuns(),
+        repositories.directory.listDirectorySources(),
       ]);
       return page(
         'Google グループ',
-        '同期した Google グループと直接メンバー数を確認します。',
-        renderGroupsAdmin(groups, runs),
+        'Google ディレクトリを同期し、グループと直接メンバー数を確認します。',
+        renderGroupsAdmin({ groups, runs, directorySources, capabilities }),
       );
     }
-    case '/admin/mappings':
+    case '/admin/mappings': {
+      const [mappings, groups, entitlements, provisioningTargets] = await Promise.all([
+        repositories.catalog.listEntitlementMappings(),
+        repositories.catalog.listSourceGroups(),
+        repositories.catalog.listApplicationEntitlements(),
+        repositories.provisioning.listProvisioningTargets(),
+      ]);
       return page(
         '権限ルール',
-        'Google グループとアプリケーション権限の対応を確認します。',
-        renderMappingsAdmin(await repositories.catalog.listEntitlementMappings()),
+        'Google グループとアプリケーション権限の対応を作成し、影響範囲を確認して有効化します。',
+        renderMappingsAdmin({
+          mappings,
+          groups,
+          entitlements,
+          provisioningTargets,
+          capabilities,
+        }),
       );
+    }
     case '/admin/provisioning': {
       const [states, plans, operations, exports] = await Promise.all([
         repositories.provisioning.listProvisioningStates(),
@@ -155,13 +187,19 @@ async function pageContent(
         renderAuditAdmin(await repositories.audit.listAuditEvents()),
       );
     case '/admin/settings': {
-      const [directorySources, providerConnections, provisioningTargets, auditEvents] =
-        await Promise.all([
-          repositories.directory.listDirectorySources(),
-          repositories.provisioning.listProviderConnections(),
-          repositories.provisioning.listProvisioningTargets(),
-          repositories.audit.listAuditEvents(),
-        ]);
+      const [
+        directorySources,
+        providerConnections,
+        provisioningTargets,
+        entitlements,
+        auditEvents,
+      ] = await Promise.all([
+        repositories.directory.listDirectorySources(),
+        repositories.provisioning.listProviderConnections(),
+        repositories.provisioning.listProvisioningTargets(),
+        repositories.catalog.listApplicationEntitlements(),
+        repositories.audit.listAuditEvents(),
+      ]);
       const lastConfigurationPlanHash = auditEvents.find(
         (event) =>
           typeof event.payload.configurationPlanHash === 'string' &&
@@ -169,12 +207,14 @@ async function pageContent(
       )?.payload.configurationPlanHash as string | undefined;
       return page(
         '設定',
-        '現在の組織設定と構成ファイルの適用状況を確認します。',
+        '組織設定、ディレクトリ、外部サービス接続、権限の反映先を管理します。',
         renderSettingsAdmin({
           settings,
           directorySources,
           providerConnections,
           provisioningTargets,
+          entitlements,
+          capabilities,
           ...(lastConfigurationPlanHash === undefined ? {} : { lastConfigurationPlanHash }),
         }),
       );
@@ -182,6 +222,13 @@ async function pageContent(
     default:
       return null;
   }
+}
+
+function administrationCapabilities(roles: PlatformRole[]): AdministrationCapabilities {
+  return {
+    canManageConfiguration: roles.some((role) => role === 'admin' || role === 'operator'),
+    canManageIdentities: roles.includes('admin'),
+  };
 }
 
 async function applicationEntries(
