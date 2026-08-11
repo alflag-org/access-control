@@ -50,11 +50,15 @@ describe('Portal information architecture and language', () => {
   });
 
   it('separates users, service accounts, and automated workloads', () => {
-    const html = renderPeopleAdmin([
-      memberSubject(),
-      nonHumanSubject('service', 'service_account', 'Configuration Service'),
-      nonHumanSubject('workload', 'automation', 'Directory Synchronizer'),
-    ]);
+    const html = renderPeopleAdmin({
+      subjects: [
+        memberSubject(),
+        nonHumanSubject('service', 'service_account', 'Configuration Service'),
+        nonHumanSubject('workload', 'automation', 'Directory Synchronizer'),
+      ],
+      roleGrants: [],
+      capabilities: { canManageConfiguration: true, canManageIdentities: true },
+    });
 
     expect(html).toContain('<h2>ユーザー</h2><span class="count">1</span>');
     expect(html).toContain('<h2>サービスと自動処理</h2><span class="count">2</span>');

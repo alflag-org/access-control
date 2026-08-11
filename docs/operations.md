@@ -10,6 +10,15 @@ The Worker redirects `/` to `/applications`. The authenticated web surfaces incl
 - `/admin/people`, `/admin/guests`, `/admin/applications`, `/admin/groups`, `/admin/mappings`, `/admin/provisioning`, `/admin/audit`, and `/admin/settings` for role-authorized administration.
 - `/docs` for Swagger UI and `/openapi.json` for the generated OpenAPI document.
 
+Administration pages expose the revision-checked mutations supported by the API. Administrators
+can change Subject lifecycle state and roles, manage guests and their immutable provider identity
+bindings, and update organization settings.
+Administrators and operators can manage applications and entitlements, synchronize a Directory
+Source, manage mappings, and update runtime provider configuration. Auditors receive the same
+administration views without editing forms. Lifecycle changes, role removal, guest suspension,
+mapping activation, and mapping retirement require explicit browser confirmation; the API still
+enforces the role, revision, and domain invariants for every request.
+
 `/healthz` requires an authenticated active Subject and returns `{ "status": "ok" }` when the request reaches the handler.
 
 ## Administration roles
